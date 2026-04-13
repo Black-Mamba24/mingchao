@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>穿越明朝</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- 顶部栏 -->
+  <div class="game-topbar">
+    <span class="gt-title">穿越明朝</span>
+    <span id="act-badge" class="act-badge">第一幕 · 入局</span>
+    <span class="gt-meta" id="role-label">—</span>
+  </div>
+
+  <!-- 状态栏 -->
+  <div class="status-bar">
+    <div class="status-item">
+      <span class="si-label">声望</span>
+      <div class="status-track">
+        <div class="status-fill fill-reputation" id="bar-reputation" style="width:50%"></div>
+      </div>
+      <span class="si-val" id="val-reputation">5</span>
+    </div>
+    <div class="status-item">
+      <span class="si-label">风险</span>
+      <div class="status-track">
+        <div class="status-fill fill-risk" id="bar-risk" style="width:0%"></div>
+      </div>
+      <span class="si-val" id="val-risk">0</span>
+    </div>
+    <div class="status-item">
+      <span class="si-label">历史洞察</span>
+      <div class="status-track">
+        <div class="status-fill fill-insight" id="bar-insight" style="width:0%"></div>
+      </div>
+      <span class="si-val" id="val-insight">0</span>
+    </div>
+  </div>
+
+  <!-- 游戏主内容 -->
+  <div class="game-content">
+
+    <!-- 场景描述 -->
+    <div class="scene-text" id="scene-text"></div>
+
+    <!-- NPC 对话 -->
+    <div class="npc-box" id="npc-box">
+      <div class="npc-avatar" id="npc-avatar">人</div>
+      <div class="npc-content">
+        <div class="npc-name" id="npc-name"></div>
+        <div class="npc-text" id="npc-text"></div>
+      </div>
+    </div>
+
+    <!-- 问题 -->
+    <div class="question-text" id="question-text"></div>
+
+    <!-- 选项 -->
+    <div class="options-grid" id="options-grid"></div>
+
+    <!-- Loading -->
+    <div class="loading-box" id="loading-box">
+      <div class="dot-spin">
+        <span></span><span></span><span></span>
+      </div>
+      <span id="loading-text">AI 正在推演历史……</span>
+    </div>
+
+    <!-- 后果描述 -->
+    <div class="consequence-box" id="consequence-box"></div>
+
+    <!-- 继续按钮 -->
+    <div style="text-align:center">
+      <button class="continue-btn" id="continue-btn">继续 →</button>
+    </div>
+  </div>
+
+  <!-- 历史注释浮动按钮 -->
+  <button class="note-toggle-btn" id="note-toggle" title="历史小知识">📜</button>
+
+  <!-- 历史注释面板 -->
+  <div class="note-panel" id="note-panel">
+    <div class="note-header">📜 历史小知识</div>
+    <div class="note-text" id="note-text"></div>
+  </div>
+
+  <script src="js/state-manager.js"></script>
+  <script src="js/llm-client.js"></script>
+  <script src="js/prompt-builder.js"></script>
+  <script src="js/stream-renderer.js"></script>
+  <script>
+    let eventData = null;
+    const ACT_NAMES = ['入局', '磨砺', '决战', '尾声'];
+
+    // ── 初始化 ────────────────────────────────────────────
+    async function init() {
+      const state = StateManager.load();
+      if (!state.eventId || !state.roleId) {
+        window.location.href = 'index.html';
+        return;
+      }
+
+      try {
+        const resp = await fetch(`data/${state.eventId}.json`);
+        eventData = await resp.json();
+      } catch (e) {
+        showError('历史数据加载失败，请检查 data/ 目录是否完整。');
+        return;
+      }
+
+      const role = eventData.roles.find(r => r.id === state.roleId);
+      document.getElementById('role-label').textContent =
+        role ? role.name + ' · ' + role.subtitle : '';
+      updateActBadge(state.act);
+
+      loadNextScene();
+    }
+
+    // ── 状态栏更新 ────────────────────────────────────────
+    function updateStatusBar() {
+      const s = StateManager.get();
+      document.getElementById('val-reputation').textContent = s.reputation;
+      document.getElementById('val-risk').textContent       = s.risk;
+      document.getElementById('val-insight').textContent    = s.insight;
+      document.getElementById('bar-reputation').style.width = (s.reputation * 10) + '%';
+      document.getElementById('bar-risk').style.width       = (s.risk * 10) + '%';
+      document.getElementById('bar-insight').style.width    = (s.insight * 10) + '%';
+    }
+
+    function updateActBadge(act) {
+      const names = ['一','二','三','四'];
+      document.getElementById('act-badge').textContent =
+        `第${names[act-1]}幕 · ${ACT_NAMES[act-1]}`;
+    }
+
+    // ── 加载下一场景 ──────────────────────────────────────
+    async function loadNextScene() {
+      const state = StateManager.get();
+      if (state.finished) { window.location.href = 'ending.html'; return; }
+
+      updateStatusBar();
+      updateActBadge(state.act);
+      setLoading(true, 'AI 正在构建历史场景……');
+
+      // 重置界面
+      document.getElementById('consequence-box').style.display = 'none';
+      document.getElementById('continue-btn').style.display    = 'none';
+      document.getElementById('options-grid').innerHTML        = '';
+      document.getElementById('options-grid').style.display    = 'none';
+      document.getElementById('question-text').textContent     = '';
+      document.getElementById('note-toggle').style.display     = 'none';
+      document.getElementById('note-panel').classList.remove('visible');
+      document.getElementById('scene-text').style.color        = '';
+
+      try {
+        const messages  = PromptBuilder.buildMessages(eventData, state.roleId, state.act, state.scene, state);
+        const sceneData = await LLMClient.chat(messages);
+
+        StateManager.pushHistory('assistant', JSON.stringify(sceneData));
+        setLoading(false);
+
+        // 更新 NPC 头像首字
+        if (sceneData.npc_name) {
+          document.getElementById('npc-avatar').textContent = sceneData.npc_name[0];
+        }
+        // 预填历史注释
+        if (sceneData.historical_note) {
+          document.getElementById('note-text').textContent = sceneData.historical_note;
+        }
+
+        await StreamRenderer.renderScene(sceneData, {
+          sceneEl:    document.getElementById('scene-text'),
+          npcEl:      document.getElementById('npc-box'),
+          questionEl: document.getElementById('question-text'),
+          optionsEl:  document.getElementById('options-grid'),
+          noteEl:     document.getElementById('note-panel')
+        });
+
+        bindOptionEvents();
+
+      } catch (e) {
+        setLoading(false);
+        showError('AI 生成失败：' + e.message);
+      }
+    }
+
+    // ── 绑定选项点击 ──────────────────────────────────────
+    function bindOptionEvents() {
+      const btns = document.querySelectorAll('.option-btn');
+      btns.forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const optText     = btn.dataset.text;
+          const repDelta    = parseInt(btn.dataset.reputationDelta) || 0;
+          const riskDelta   = parseInt(btn.dataset.riskDelta)       || 0;
+          const insightDelta = parseInt(btn.dataset.insightDelta)   || 0;
+
+          btns.forEach(b => { b.disabled = true; });
+          btn.classList.add('selected');
+
+          const state = StateManager.get();
+          StateManager.recordChoice(state.act, state.scene, btn.dataset.id, optText);
+          StateManager.pushHistory('user', `我选择：${optText}`);
+          StateManager.applyDeltas({ reputation_delta: repDelta, risk_delta: riskDelta, insight_delta: insightDelta });
+          updateStatusBar();
+
+          // 流式生成后果
+          const box = document.getElementById('consequence-box');
+          box.style.display = 'block';
+          box.textContent   = '';
+          setLoading(true, 'AI 正在推演后果……');
+
+          try {
+            const msgs = PromptBuilder.buildConsequenceMessages(
+              eventData, state.roleId, optText, StateManager.get()
+            );
+            setLoading(false);
+            const { onChunk, onDone } = StreamRenderer.renderConsequence(box);
+            const fullText = await LLMClient.chatStream(msgs, onChunk, onDone);
+            StateManager.pushHistory('assistant', fullText);
+          } catch (e) {
+            setLoading(false);
+            box.textContent = '（历史的齿轮继续转动……）';
+          }
+
+          setLoading(false);
+          StateManager.nextScene();
+
+          const continueBtn = document.getElementById('continue-btn');
+          const newState    = StateManager.get();
+          continueBtn.textContent     = newState.finished ? '查看结局 →' : '继续 →';
+          continueBtn.style.display   = 'inline-block';
+        });
+      });
+    }
+
+    // ── 继续 / 结局 ───────────────────────────────────────
+    document.getElementById('continue-btn').addEventListener('click', () => {
+      const state = StateManager.get();
+      if (state.finished) {
+        window.location.href = 'ending.html';
+      } else {
+        loadNextScene();
+      }
+    });
+
+    // ── Loading ───────────────────────────────────────────
+    function setLoading(visible, text) {
+      const box = document.getElementById('loading-box');
+      box.classList.toggle('visible', visible);
+      if (visible && text) document.getElementById('loading-text').textContent = text;
+    }
+
+    // ── 错误 ──────────────────────────────────────────────
+    function showError(msg) {
+      const el = document.getElementById('scene-text');
+      el.textContent = '⚠ ' + msg;
+      el.style.color = 'var(--red)';
+    }
+
+    // ── 历史注释 ──────────────────────────────────────────
+    document.getElementById('note-toggle').addEventListener('click', () => {
+      document.getElementById('note-panel').classList.toggle('visible');
+    });
+    document.addEventListener('click', e => {
+      const panel = document.getElementById('note-panel');
+      const btn   = document.getElementById('note-toggle');
+      if (!panel.contains(e.target) && !btn.contains(e.target)) {
+        panel.classList.remove('visible');
+      }
+    });
+
+    // ── 启动 ──────────────────────────────────────────────
+    init();
+  </script>
+</body>
+</html>

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>结局 · 穿越明朝</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="ending-wrap">
+
+    <!-- 标题块（由 JS 填充）-->
+    <div class="ending-title-block fade-in">
+      <div class="ending-badge">ENDING</div>
+      <div class="ending-h1" id="ending-h1">结局揭晓</div>
+      <div class="ending-epitaph" id="ending-epitaph"></div>
+    </div>
+
+    <!-- 个人结局 -->
+    <div class="ending-section fade-in">
+      <h3>你的命运</h3>
+      <p id="personal-ending">
+        <span style="color:var(--cream-dark)">正在书写历史……</span>
+      </p>
+    </div>
+
+    <!-- 历史真相 -->
+    <div class="ending-section fade-in">
+      <h3>历史的真实结局</h3>
+      <p id="historical-truth" style="color:var(--brown)"></p>
+    </div>
+
+    <!-- 本局统计 -->
+    <div class="ending-section fade-in">
+      <h3>本局数据</h3>
+      <div class="stats-row" id="stats-row" style="margin-bottom:20px">
+        <div class="stat-item">
+          <span class="st-val" id="stat-reputation">—</span>
+          <span class="st-label">最终声望</span>
+        </div>
+        <div class="stat-item">
+          <span class="st-val" id="stat-risk">—</span>
+          <span class="st-label">最终风险</span>
+        </div>
+        <div class="stat-item">
+          <span class="st-val" id="stat-insight">—</span>
+          <span class="st-label">历史洞察</span>
+        </div>
+        <div class="stat-item">
+          <span class="st-val" id="stat-choices">—</span>
+          <span class="st-label">选择次数</span>
+        </div>
+      </div>
+      <p style="font-size:0.8rem;color:var(--brown);margin-bottom:12px;letter-spacing:0.1em;">你的关键抉择</p>
+      <ul class="choice-list" id="choice-list"></ul>
+    </div>
+
+    <!-- 操作按钮 -->
+    <div class="ending-actions fade-in">
+      <button class="btn-restart" id="restart-btn">再次入局</button>
+      <a href="index.html" class="btn-home">选择其他历史</a>
+    </div>
+  </div>
+
+  <script src="js/state-manager.js"></script>
+  <script src="js/llm-client.js"></script>
+  <script src="js/prompt-builder.js"></script>
+  <script src="js/stream-renderer.js"></script>
+  <script>
+    async function init() {
+      const state = StateManager.load();
+      if (!state.eventId) { window.location.href = 'index.html'; return; }
+
+      // 填充统计
+      document.getElementById('stat-reputation').textContent = state.reputation;
+      document.getElementById('stat-risk').textContent = state.risk;
+      document.getElementById('stat-insight').textContent = state.insight;
+      document.getElementById('stat-choices').textContent = state.choices.length;
+
+      // 填充选择记录
+      const choiceList = document.getElementById('choice-list');
+      state.choices.forEach((c, i) => {
+        const li = document.createElement('li');
+        li.innerHTML = `<span class="choice-num">${i+1}</span><span>第${c.act}幕：${c.optionText}</span>`;
+        choiceList.appendChild(li);
+      });
+
+      // 加载历史数据
+      let eventData;
+      try {
+        const resp = await fetch(`data/${state.eventId}.json`);
+        eventData = await resp.json();
+      } catch (e) {
+        document.getElementById('personal-ending').textContent = '（历史数据加载失败）';
+        return;
+      }
+
+      // 调用 AI 生成结局
+      try {
+        const messages = PromptBuilder.buildEndingMessages(eventData, state.roleId, state);
+        const endingData = await LLMClient.chat(messages);
+
+        document.getElementById('ending-h1').textContent = endingData.ending_title || '历史的见证者';
+        document.getElementById('ending-epitaph').textContent = endingData.epitaph || '';
+
+        const personalEl = document.getElementById('personal-ending');
+        await StreamRenderer.typewrite(personalEl, endingData.personal_ending || '你亲历了这段历史。', 22);
+
+        const truthEl = document.getElementById('historical-truth');
+        await StreamRenderer.typewrite(truthEl, endingData.historical_truth || '', 18);
+
+      } catch (e) {
+        showFallbackEnding(state, eventData);
+      }
+    }
+
+    // 无 API Key 时的静态兜底结局
+    function showFallbackEnding(state, eventData) {
+      const endings = eventData.ending_conditions;
+      let endingKey = 'fallen';
+      if (state.reputation >= (endings.hero?.reputation_min || 8)) endingKey = 'hero';
+      else if (state.reputation >= (endings.survivor?.reputation_min || 4)) endingKey = 'survivor';
+
+      const ending = endings[endingKey];
+      document.getElementById('ending-h1').textContent = endingKey === 'hero' ? '威名赫赫' : endingKey === 'survivor' ? '劫后余生' : '随波逐流';
+      document.getElementById('personal-ending').textContent = ending?.description || '你见证了这段历史。';
+      document.getElementById('historical-truth').textContent =
+        '嘉靖四十年（1561年），戚继光率戚家军台州九战九捷，斩首两千余级，东南倭患为之一清。此后戚继光入闽，与俞大猷联合，至隆庆元年（1567年），福建倭患悉平。戚家军以"召之即来、来之能战、战之能胜"著称于世，戚继光亦成为明代军事史上最杰出的将领之一。';
+    }
+
+    // 再次入局（同角色重开）
+    document.getElementById('restart-btn').addEventListener('click', () => {
+      const state = StateManager.load();
+      const newState = {
+        eventId: state.eventId,
+        roleId: state.roleId,
+        act: 1,
+        scene: 0,
+        reputation: 5,
+        risk: 0,
+        insight: 0,
+        history: [],
+        choices: [],
+        finished: false
+      };
+      localStorage.setItem('mingchao_state', JSON.stringify(newState));
+      window.location.href = 'game.html';
+    });
+
+    init();
+  </script>
+</body>
+</html>

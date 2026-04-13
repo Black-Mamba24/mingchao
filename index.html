@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>穿越明朝</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="page-wrap">
+    <header class="site-header">
+      <div class="game-title">穿越明朝</div>
+      <div class="game-subtitle">Travel Through the Ming Dynasty</div>
+      <div class="seal">历史不可篡改 · AI 实时生成</div>
+    </header>
+
+    <div class="divider">选择你的历史时刻</div>
+
+    <p style="font-size:0.88rem; color:var(--brown); text-align:center; margin-bottom:28px; line-height:1.8;">
+      选择一段明朝历史，以真实人物的视角沉浸体验。<br>
+      历史的大势不会改变，但你的故事，由你书写。
+    </p>
+
+    <div class="event-grid" id="event-grid">
+      <!-- 卡片由 JS 动态渲染 -->
+    </div>
+
+    <div style="text-align:center; margin-top:48px; font-size:0.8rem; color:var(--cream-dark);">
+      首期开放：戚继光抗倭 · 更多历史即将解锁
+    </div>
+  </div>
+
+  <script>
+    const events = [
+      {
+        id: 'anti-wako',
+        title: '戚继光抗倭',
+        period: '嘉靖—隆庆年间',
+        desc: '东南沿海倭患猖獗，戚继光募义乌矿工组建新军，以鸳鸯阵法台州九战九捷，荡平百年倭患。',
+        tag: '热血 · 战场 · 练兵',
+        available: true
+      },
+      {
+        id: 'zheng-he',
+        title: '郑和下西洋',
+        period: '永乐年间',
+        desc: '率两万余人七下西洋，遍访三十余国，扬大明国威于四海，开创万邦来朝之盛景。',
+        tag: '航海 · 外交 · 探索',
+        available: false
+      },
+      {
+        id: 'zhang-juzheng',
+        title: '张居正改革',
+        period: '万历年间',
+        desc: '一条鞭法、清丈田亩、考成法，以一人之力挽大明于积弊，权倾朝野，千古争议。',
+        tag: '权谋 · 变法 · 朝堂',
+        available: false
+      },
+      {
+        id: 'jingnan',
+        title: '靖难之役',
+        period: '建文—永乐年间',
+        desc: '燕王朱棣以"清君侧"之名起兵，与建文帝展开历时三年的皇位之争，历史的走向悬于一线。',
+        tag: '战争 · 忠义 · 抉择',
+        available: false
+      },
+      {
+        id: 'zheng-chenggong',
+        title: '郑成功收复台湾',
+        period: '南明时期',
+        desc: '率水师横渡海峡，驱逐荷兰殖民者，收复宝岛台湾，民族气节彪炳史册。',
+        tag: '海战 · 气节 · 收复',
+        available: false
+      }
+    ];
+
+    const grid = document.getElementById('event-grid');
+    events.forEach(ev => {
+      const card = document.createElement('div');
+      card.className = 'event-card fade-in' + (ev.available ? '' : ' locked');
+      card.innerHTML = `
+        <div class="ec-period">${ev.period}</div>
+        <div class="ec-title">${ev.title}</div>
+        <div class="ec-desc">${ev.desc}</div>
+        <div class="ec-tag">${ev.tag}</div>
+      `;
+      if (ev.available) {
+        card.addEventListener('click', () => {
+          sessionStorage.setItem('selected_event', ev.id);
+          window.location.href = 'role.html';
+        });
+      }
+      grid.appendChild(card);
+    });
+  </script>
+</body>
+</html>

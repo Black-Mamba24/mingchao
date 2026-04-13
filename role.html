@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>选择角色 · 穿越明朝</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="page-wrap">
+    <button class="back-btn" onclick="history.back()">← 返回</button>
+
+    <div class="event-banner" id="event-banner">
+      <div class="period-tag" id="banner-period"></div>
+      <h2 id="banner-title"></h2>
+      <p id="banner-desc"></p>
+    </div>
+
+    <div class="divider">选择你的身份</div>
+
+    <div class="role-grid" id="role-grid">
+      <!-- 角色卡由 JS 渲染 -->
+    </div>
+  </div>
+
+  <script>
+    const eventId = sessionStorage.getItem('selected_event');
+    if (!eventId) { window.location.href = 'index.html'; }
+
+    fetch(`data/${eventId}.json`)
+      .then(r => r.json())
+      .then(data => {
+        // 填充 banner
+        document.getElementById('banner-period').textContent = data.period;
+        document.getElementById('banner-title').textContent = data.title;
+        document.getElementById('banner-desc').textContent = data.description;
+
+        // 渲染角色卡
+        const grid = document.getElementById('role-grid');
+        data.roles.forEach(role => {
+          const card = document.createElement('div');
+          card.className = 'role-card fade-in';
+          card.innerHTML = `
+            <div class="rc-perspective">${role.perspective} 视角</div>
+            <div class="rc-name">${role.name}</div>
+            <div class="rc-subtitle">${role.subtitle}</div>
+            <div class="rc-desc">${role.description}</div>
+            <div class="rc-difficulty">难度：${role.difficulty}</div>
+            <button class="rc-choose-btn">以此身份入局 →</button>
+          `;
+          card.querySelector('.rc-choose-btn').addEventListener('click', () => {
+            sessionStorage.setItem('selected_role', role.id);
+            // 重置游戏状态
+            localStorage.removeItem('mingchao_state');
+            // 写入初始状态
+            const state = {
+              eventId,
+              roleId: role.id,
+              act: 1,
+              scene: 0,
+              reputation: 5,
+              risk: 0,
+              insight: 0,
+              history: [],
+              choices: [],
+              finished: false
+            };
+            localStorage.setItem('mingchao_state', JSON.stringify(state));
+            window.location.href = 'game.html';
+          });
+          grid.appendChild(card);
+        });
+      })
+      .catch(() => {
+        document.getElementById('role-grid').innerHTML =
+          '<p style="color:var(--red)">历史数据加载失败，请检查 data/ 目录。</p>';
+      });
+  </script>
+</body>
+</html>
