@@ -186,9 +186,9 @@
     }
 
     // 与当前幕/场强相关的小贴士，并行请求不阻塞主流程
-    async function fetchAndShowTip(act, scene) {
+    async function fetchAndShowTip(act, scene, state) {
       try {
-        const msgs = PromptBuilder.buildTipMessages(eventData, act, scene);
+        const msgs = PromptBuilder.buildTipMessages(eventData, act, scene, state);
         const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
           method: 'POST',
           headers: {
@@ -198,8 +198,8 @@
           body: JSON.stringify({
             model: 'deepseek-chat',
             messages: msgs,
-            temperature: 0.7,
-            max_tokens: 80
+            temperature: 0.9,
+            max_tokens: 160
           })
         });
         if (!resp.ok) return;
@@ -242,7 +242,7 @@
 
       // 3. 非第一个场景才并行拉取小贴士
       if (!isFirstScene) {
-        fetchAndShowTip(state.act, state.scene);
+        fetchAndShowTip(state.act, state.scene, state);
       }
 
       // 4. 请求主场景内容
