@@ -158,25 +158,40 @@
         `第${names[act-1]}幕 · ${ACT_NAMES[act-1]}`;
     }
 
-    // ── 小贴士：loading 期间随机轮播 ─────────────────────
-    let tipsTimer = null;
-    function startTips() {
-      const tips = eventData && eventData.tips;
-      if (!tips || tips.length === 0) return;
-      const tipsBox  = document.getElementById('tips-box');
-      const tipsText = document.getElementById('tips-text');
-      const show = () => {
-        const tip = tips[Math.floor(Math.random() * tips.length)];
-        tipsText.textContent = tip;
-        tipsBox.classList.add('visible');
-      };
-      show();
-      tipsTimer = setInterval(show, 4000);
+    // ── 小贴士：与当前场景强相关，loading 期间展示一条 ──────
+    function showTip(text) {
+      document.getElementById('tips-text').textContent = text;
+      document.getElementById('tips-box').classList.add('visible');
     }
-    function stopTips() {
-      clearInterval(tipsTimer);
-      tipsTimer = null;
+    function hideTip() {
       document.getElementById('tips-box').classList.remove('visible');
+    }
+
+    // 并行请求贴士（不阻塞主场景生成），返回后直接渲染
+    async function fetchAndShowTip(act, scene) {
+      try {
+        const msgs = PromptBuilder.buildTipMessages(eventData, act, scene);
+        // 使用轻量非流式请求，max_tokens 限制在 80
+        const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${LLMClient.API_KEY || 'sk-e586da4b09124ba89c1c989599caec44'}`
+          },
+          body: JSON.stringify({
+            model: 'deepseek-chat',
+            messages: msgs,
+            temperature: 0.7,
+            max_tokens: 80
+          })
+        });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const tip = data.choices?.[0]?.message?.content?.trim();
+        if (tip) showTip(tip);
+      } catch (e) {
+        // 贴士失败静默处理，不影响主流程
+      }
     }
 
     // ── 加载下一场景 ──────────────────────────────────────
@@ -204,7 +219,8 @@
       document.getElementById('consequence-box').textContent = '';
 
       setLoading(true, 'AI 正在构建历史场景……');
-      startTips();
+      // 并行请求贴士，不阻塞主场景
+      fetchAndShowTip(state.act, state.scene);
 
       try {
         const messages  = PromptBuilder.buildMessages(eventData, state.roleId, state.act, state.scene, state);
@@ -212,7 +228,7 @@
 
         StateManager.pushHistory('assistant', JSON.stringify(sceneData));
         setLoading(false);
-        stopTips();
+        hideTip();
 
         if (sceneData.npc_name) {
           document.getElementById('npc-avatar').textContent = sceneData.npc_name[0];
@@ -233,7 +249,7 @@
 
       } catch (e) {
         setLoading(false);
-        stopTips();
+        hideTip();
         showError('AI 生成失败：' + e.message);
       }
     }
@@ -263,7 +279,6 @@
           box.style.display = 'block';
           box.textContent   = '';
           setLoading(true, 'AI 正在推演后果……');
-          startTips();
 
           let consequenceText = '';
           try {
@@ -271,14 +286,12 @@
               eventData, state.roleId, optText, StateManager.get()
             );
             setLoading(false);
-            stopTips();
             const { onChunk, onDone } = StreamRenderer.renderConsequence(box);
             const fullText = await LLMClient.chatStream(msgs, onChunk, onDone);
             StateManager.pushHistory('assistant', fullText);
             consequenceText = fullText;
           } catch (e) {
             setLoading(false);
-            stopTips();
             box.textContent = '（历史的齿轮继续转动……）';
             consequenceText = box.textContent;
           }

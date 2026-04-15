@@ -89,5 +89,5 @@ const LLMClient = (() => {
     return fullText;
   }
 
-  return { chat, chatStream };
+  return { chat, chatStream, API_KEY };
 })();
