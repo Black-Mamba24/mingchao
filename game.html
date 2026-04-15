@@ -13,7 +13,7 @@
   <!-- 顶部栏 -->
   <div class="game-topbar">
     <span class="gt-title">穿越明朝</span>
-    <span id="act-badge" class="act-badge">第一幕 · 入局</span>
+    <span id="act-badge" class="act-badge">第一幕 · 立志与临危</span>
     <span class="gt-meta" id="role-label">—</span>
   </div>
 
@@ -45,38 +45,58 @@
   <!-- 游戏主内容 -->
   <div class="game-content">
 
-    <!-- 场景描述 -->
-    <div class="scene-text" id="scene-text"></div>
+    <!-- 场景历史存档区（已完成的场景堆叠于此） -->
+    <div id="scene-archive-container"></div>
 
-    <!-- NPC 对话 -->
-    <div class="npc-box" id="npc-box">
-      <div class="npc-avatar" id="npc-avatar">人</div>
-      <div class="npc-content">
-        <div class="npc-name" id="npc-name"></div>
-        <div class="npc-text" id="npc-text"></div>
+    <!-- 当前活动场景 -->
+    <div id="active-scene">
+
+      <!-- 场景描述 -->
+      <div class="scene-text" id="scene-text"></div>
+
+      <!-- NPC 对话 -->
+      <div class="npc-box" id="npc-box">
+        <div class="npc-avatar" id="npc-avatar">人</div>
+        <div class="npc-content">
+          <div class="npc-name" id="npc-name"></div>
+          <div class="npc-text" id="npc-text"></div>
+        </div>
       </div>
-    </div>
 
-    <!-- 问题 -->
-    <div class="question-text" id="question-text"></div>
+      <!-- 问题 -->
+      <div class="question-text" id="question-text"></div>
 
-    <!-- 选项 -->
-    <div class="options-grid" id="options-grid"></div>
+      <!-- 选项 -->
+      <div class="options-grid" id="options-grid"></div>
 
-    <!-- Loading -->
-    <div class="loading-box" id="loading-box">
-      <div class="dot-spin">
-        <span></span><span></span><span></span>
+      <!-- Loading + 小贴士 -->
+      <div class="loading-box" id="loading-box">
+        <div class="dot-spin">
+          <span></span><span></span><span></span>
+        </div>
+        <span id="loading-text">AI 正在推演历史……</span>
       </div>
-      <span id="loading-text">AI 正在推演历史……</span>
-    </div>
+      <div class="tips-box" id="tips-box">
+        <span class="tips-icon">📖</span>
+        <div>
+          <div class="tips-label">历史小贴士</div>
+          <span id="tips-text"></span>
+        </div>
+      </div>
 
-    <!-- 后果描述 -->
-    <div class="consequence-box" id="consequence-box"></div>
+      <!-- 后果描述 -->
+      <div class="consequence-box" id="consequence-box"></div>
 
-    <!-- 继续按钮 -->
-    <div style="text-align:center">
-      <button class="continue-btn" id="continue-btn">继续 →</button>
+      <!-- 错误重试区 -->
+      <div id="error-box" style="display:none; padding:16px 0;">
+        <div id="error-text" style="color:var(--red); font-size:0.92rem;"></div>
+        <button class="retry-btn" id="retry-btn">↺ 重新推演</button>
+      </div>
+
+      <!-- 继续按钮 -->
+      <div style="text-align:center">
+        <button class="continue-btn" id="continue-btn">继续 →</button>
+      </div>
     </div>
   </div>
 
@@ -138,6 +158,27 @@
         `第${names[act-1]}幕 · ${ACT_NAMES[act-1]}`;
     }
 
+    // ── 小贴士：loading 期间随机轮播 ─────────────────────
+    let tipsTimer = null;
+    function startTips() {
+      const tips = eventData && eventData.tips;
+      if (!tips || tips.length === 0) return;
+      const tipsBox  = document.getElementById('tips-box');
+      const tipsText = document.getElementById('tips-text');
+      const show = () => {
+        const tip = tips[Math.floor(Math.random() * tips.length)];
+        tipsText.textContent = tip;
+        tipsBox.classList.add('visible');
+      };
+      show();
+      tipsTimer = setInterval(show, 4000);
+    }
+    function stopTips() {
+      clearInterval(tipsTimer);
+      tipsTimer = null;
+      document.getElementById('tips-box').classList.remove('visible');
+    }
+
     // ── 加载下一场景 ──────────────────────────────────────
     async function loadNextScene() {
       const state = StateManager.get();
@@ -145,17 +186,25 @@
 
       updateStatusBar();
       updateActBadge(state.act);
-      setLoading(true, 'AI 正在构建历史场景……');
 
-      // 重置界面
+      // 隐藏错误、继续按钮
+      hideError();
+      document.getElementById('continue-btn').style.display = 'none';
       document.getElementById('consequence-box').style.display = 'none';
-      document.getElementById('continue-btn').style.display    = 'none';
-      document.getElementById('options-grid').innerHTML        = '';
-      document.getElementById('options-grid').style.display    = 'none';
-      document.getElementById('question-text').textContent     = '';
-      document.getElementById('note-toggle').style.display     = 'none';
+      document.getElementById('note-toggle').style.display   = 'none';
       document.getElementById('note-panel').classList.remove('visible');
-      document.getElementById('scene-text').style.color        = '';
+
+      // 清空活动场景内容（不清除 archive）
+      document.getElementById('scene-text').textContent     = '';
+      document.getElementById('scene-text').style.color     = '';
+      document.getElementById('question-text').textContent  = '';
+      document.getElementById('options-grid').innerHTML     = '';
+      document.getElementById('options-grid').style.display = 'none';
+      document.getElementById('npc-box').style.display      = 'none';
+      document.getElementById('consequence-box').textContent = '';
+
+      setLoading(true, 'AI 正在构建历史场景……');
+      startTips();
 
       try {
         const messages  = PromptBuilder.buildMessages(eventData, state.roleId, state.act, state.scene, state);
@@ -163,12 +212,11 @@
 
         StateManager.pushHistory('assistant', JSON.stringify(sceneData));
         setLoading(false);
+        stopTips();
 
-        // 更新 NPC 头像首字
         if (sceneData.npc_name) {
           document.getElementById('npc-avatar').textContent = sceneData.npc_name[0];
         }
-        // 预填历史注释
         if (sceneData.historical_note) {
           document.getElementById('note-text').textContent = sceneData.historical_note;
         }
@@ -185,20 +233,22 @@
 
       } catch (e) {
         setLoading(false);
+        stopTips();
         showError('AI 生成失败：' + e.message);
       }
     }
 
     // ── 绑定选项点击 ──────────────────────────────────────
     function bindOptionEvents() {
-      const btns = document.querySelectorAll('.option-btn');
+      const btns = document.querySelectorAll('#options-grid .option-btn');
       btns.forEach(btn => {
         btn.addEventListener('click', async () => {
-          const optText     = btn.dataset.text;
-          const repDelta    = parseInt(btn.dataset.reputationDelta) || 0;
-          const riskDelta   = parseInt(btn.dataset.riskDelta)       || 0;
-          const insightDelta = parseInt(btn.dataset.insightDelta)   || 0;
+          const optText      = btn.dataset.text;
+          const repDelta     = parseInt(btn.dataset.reputationDelta) || 0;
+          const riskDelta    = parseInt(btn.dataset.riskDelta)       || 0;
+          const insightDelta = parseInt(btn.dataset.insightDelta)    || 0;
 
+          // 禁用所有选项，高亮选中
           btns.forEach(b => { b.disabled = true; });
           btn.classList.add('selected');
 
@@ -213,46 +263,89 @@
           box.style.display = 'block';
           box.textContent   = '';
           setLoading(true, 'AI 正在推演后果……');
+          startTips();
 
+          let consequenceText = '';
           try {
             const msgs = PromptBuilder.buildConsequenceMessages(
               eventData, state.roleId, optText, StateManager.get()
             );
             setLoading(false);
+            stopTips();
             const { onChunk, onDone } = StreamRenderer.renderConsequence(box);
             const fullText = await LLMClient.chatStream(msgs, onChunk, onDone);
             StateManager.pushHistory('assistant', fullText);
+            consequenceText = fullText;
           } catch (e) {
             setLoading(false);
+            stopTips();
             box.textContent = '（历史的齿轮继续转动……）';
+            consequenceText = box.textContent;
           }
 
-          setLoading(false);
-
-          // 记录本场景上下文，供下一场景承上启下
-          const sceneText = document.getElementById('scene-text').textContent.slice(0, 120);
-          const consequenceText = document.getElementById('consequence-box').textContent.slice(0, 120);
+          // ── 记录完整场景上下文，用于下一场景的承上启下 ──
+          const sceneText = document.getElementById('scene-text').textContent;
           StateManager.setLastSceneContext(sceneText, optText, consequenceText);
 
           StateManager.nextScene();
 
           const continueBtn = document.getElementById('continue-btn');
           const newState    = StateManager.get();
-          continueBtn.textContent     = newState.finished ? '查看结局 →' : '继续 →';
-          continueBtn.style.display   = 'inline-block';
+          continueBtn.textContent   = newState.finished ? '查看结局 →' : '继续 →';
+          continueBtn.style.display = 'inline-block';
         });
       });
     }
 
     // ── 继续 / 结局 ───────────────────────────────────────
+    // 点击继续时：把当前活动场景归档（保留可回味），再加载新场景
     document.getElementById('continue-btn').addEventListener('click', () => {
       const state = StateManager.get();
       if (state.finished) {
         window.location.href = 'ending.html';
-      } else {
-        loadNextScene();
+        return;
       }
+
+      // 将当前活动场景 clone 到 archive 区（置灰、不可交互）
+      archiveCurrentScene();
+
+      loadNextScene();
     });
+
+    function archiveCurrentScene() {
+      const container = document.getElementById('scene-archive-container');
+      const active    = document.getElementById('active-scene');
+
+      // 添加分隔线
+      const divider = document.createElement('div');
+      divider.className = 'scene-divider';
+      const s = StateManager.get();
+      const names = ['一','二','三','四'];
+      // 分隔线显示上一场景幕次（nextScene 已经推进了幕/场，这里减一兼容）
+      divider.textContent = `· 第${names[Math.min(s.act - 1, 3)]}幕 ·`;
+      container.appendChild(divider);
+
+      // Clone 当前场景内容
+      const snapshot = document.createElement('div');
+      snapshot.className = 'scene-archive';
+
+      // 只保留需要展示的元素：场景文本、NPC对话、问题、选项、后果
+      const ids = ['scene-text', 'npc-box', 'question-text', 'options-grid', 'consequence-box'];
+      ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el && (el.textContent.trim() || el.innerHTML.trim())) {
+          const clone = el.cloneNode(true);
+          // 确保可见
+          clone.style.display = '';
+          snapshot.appendChild(clone);
+        }
+      });
+
+      container.appendChild(snapshot);
+
+      // 滚动到底部（新场景顶部）
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
 
     // ── Loading ───────────────────────────────────────────
     function setLoading(visible, text) {
@@ -261,12 +354,20 @@
       if (visible && text) document.getElementById('loading-text').textContent = text;
     }
 
-    // ── 错误 ──────────────────────────────────────────────
+    // ── 错误显示 / 隐藏 ───────────────────────────────────
     function showError(msg) {
-      const el = document.getElementById('scene-text');
-      el.textContent = '⚠ ' + msg;
-      el.style.color = 'var(--red)';
+      document.getElementById('error-text').textContent = '⚠ ' + msg;
+      document.getElementById('error-box').style.display = 'block';
     }
+    function hideError() {
+      document.getElementById('error-box').style.display = 'none';
+    }
+
+    // 重试按钮
+    document.getElementById('retry-btn').addEventListener('click', () => {
+      hideError();
+      loadNextScene();
+    });
 
     // ── 历史注释 ──────────────────────────────────────────
     document.getElementById('note-toggle').addEventListener('click', () => {
