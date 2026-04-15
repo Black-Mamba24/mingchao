@@ -95,7 +95,7 @@
   <script src="js/stream-renderer.js"></script>
   <script>
     let eventData = null;
-    const ACT_NAMES = ['入局', '磨砺', '决战', '尾声'];
+    const ACT_NAMES = ['立志与临危', '新军与奇策', '血战与平定', '北疆与余晖'];
 
     // ── 初始化 ────────────────────────────────────────────
     async function init() {
@@ -228,6 +228,12 @@
           }
 
           setLoading(false);
+
+          // 记录本场景上下文，供下一场景承上启下
+          const sceneText = document.getElementById('scene-text').textContent.slice(0, 120);
+          const consequenceText = document.getElementById('consequence-box').textContent.slice(0, 120);
+          StateManager.setLastSceneContext(sceneText, optText, consequenceText);
+
           StateManager.nextScene();
 
           const continueBtn = document.getElementById('continue-btn');

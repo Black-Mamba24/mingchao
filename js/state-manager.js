@@ -13,8 +13,9 @@ const StateManager = (() => {
     reputation: 5,
     risk: 0,
     insight: 0,
-    history: [],       // 对话历史，用于上下文
-    choices: [],       // 玩家每次选择记录
+    history: [],            // 对话历史，用于上下文
+    choices: [],            // 玩家每次选择记录
+    lastSceneContext: null, // 上一场景的承接信息 {sceneText, chosenOption, consequenceText}
     finished: false
   });
 
@@ -71,6 +72,11 @@ const StateManager = (() => {
     save();
   }
 
+  function setLastSceneContext(sceneText, chosenOption, consequenceText) {
+    state.lastSceneContext = { sceneText, chosenOption, consequenceText };
+    save();
+  }
+
   function nextScene(actData) {
     state.scene += 1;
     // 每幕3个scene后进入下一幕
@@ -83,5 +89,5 @@ const StateManager = (() => {
     save();
   }
 
-  return { load, save, reset, get, set, applyDeltas, pushHistory, recordChoice, nextScene };
+  return { load, save, reset, get, set, applyDeltas, pushHistory, recordChoice, setLastSceneContext, nextScene };
 })();
