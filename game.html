@@ -114,7 +114,6 @@
   <script>
     let eventData = null;
     let isFirstScene = true; // 第一次进入不显示小贴士
-    const ACT_NAMES = ['立志与临危', '新军与奇策', '血战与平定', '北疆与余晖'];
 
     // ── 初始化 ──────────────────────────────────────────────
     async function init() {
@@ -153,9 +152,12 @@
     }
 
     function updateActBadge(act) {
-      const names = ['一','二','三','四'];
+      const nums = ['一','二','三','四'];
+      const actName = eventData && eventData.acts && eventData.acts[act - 1]
+        ? eventData.acts[act - 1].title
+        : '';
       document.getElementById('act-badge').textContent =
-        `第${names[act-1]}幕 · ${ACT_NAMES[act-1]}`;
+        `第${nums[act-1]}幕 · ${actName}`;
     }
 
     // ── 清空当前场景区（完整重置，无残留） ──────────────────

@@ -10,6 +10,11 @@ const PromptBuilder = (() => {
     const facts = eventData.historical_facts.join('\n- ');
     const constraints = eventData.constraints.join('\n- ');
 
+    const isDirectorMode = roleId === 'zhu_yunwen';
+    const directorNote = isDirectorMode
+      ? `\n【导演模式说明】\n玩家扮演流亡的建文帝朱允炆，拥有「历史导演权」。在尊重地理常识与时代背景的前提下，允许适当发挥想象力，让玩家自行书写历史结局。场景可以充满奇思妙想，但不得出现现代科技或严重违背明代地理的内容。`
+      : '';
+
     return `你是一个严谨的历史沉浸式叙事引擎，正在运行游戏《穿越明朝》。
 
 【历史背景】
@@ -22,14 +27,14 @@ ${eventData.description}
 视角：${role.perspective}
 性格特征：${char ? char.personality : '朴实剽悍，忠勇耿直'}
 说话风格：${char ? char.speech_style : '质朴直白'}
-
+${directorNote}
 【核心历史史实（必须遵守，不得篡改）】
 - ${facts}
 
 【生成约束（严格执行）】
 - ${constraints}
 - 不得改变任何历史大事件的结果
-- 所有内容必须符合明代嘉靖年间的文化、礼制、语言习惯
+- 所有内容必须符合明代永乐至宣德年间的文化、礼制、语言习惯
 - 禁止使用现代词汇和现代概念
 - 每次生成必须返回严格的 JSON 格式，不得有任何前缀说明文字
 
