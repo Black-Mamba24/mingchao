@@ -113,7 +113,16 @@
   <script src="js/stream-renderer.js"></script>
   <script>
     let eventData = null;
+    let currentRoleId = null;
     let isFirstScene = true; // 第一次进入不显示小贴士
+
+    // 兼容 acts 为数组（旧格式）或以 roleId 为 key 的对象（新格式）
+    function getActs() {
+      if (!eventData) return [];
+      const acts = eventData.acts;
+      if (Array.isArray(acts)) return acts;
+      return (currentRoleId && acts[currentRoleId]) ? acts[currentRoleId] : [];
+    }
 
     // ── 初始化 ──────────────────────────────────────────────
     async function init() {
@@ -127,6 +136,7 @@
         const resp = await fetch(`data/${state.eventId}.json`);
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         eventData = await resp.json();
+        currentRoleId = state.roleId;
       } catch (e) {
         showError('历史数据加载失败，请检查 data/ 目录是否完整。');
         return;
@@ -153,9 +163,8 @@
 
     function updateActBadge(act) {
       const nums = ['一','二','三','四'];
-      const actName = eventData && eventData.acts && eventData.acts[act - 1]
-        ? eventData.acts[act - 1].title
-        : '';
+      const acts = getActs();
+      const actName = acts[act - 1] ? acts[act - 1].title : '';
       document.getElementById('act-badge').textContent =
         `第${nums[act-1]}幕 · ${actName}`;
     }
@@ -190,7 +199,7 @@
     // 与当前幕/场强相关的小贴士，并行请求不阻塞主流程
     async function fetchAndShowTip(act, scene, state) {
       try {
-        const msgs = PromptBuilder.buildTipMessages(eventData, act, scene, state);
+        const msgs = PromptBuilder.buildTipMessages(eventData, currentRoleId, act, scene, state);
         const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
           method: 'POST',
           headers: {
