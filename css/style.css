@@ -207,8 +207,33 @@ body::before {
 
 .role-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 18px;
+}
+.role-grid[data-role-count="2"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.role-grid[data-role-count="3"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.role-grid[data-role-count="4"] {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+@media (max-width: 1100px) {
+  .role-grid,
+  .role-grid[data-role-count="2"],
+  .role-grid[data-role-count="3"],
+  .role-grid[data-role-count="4"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .role-grid,
+  .role-grid[data-role-count="2"],
+  .role-grid[data-role-count="3"],
+  .role-grid[data-role-count="4"] {
+    grid-template-columns: 1fr;
+  }
 }
 .role-card {
   background: var(--paper);
@@ -460,6 +485,55 @@ body::before {
 }
 .opt-text { flex: 1; }
 
+/* 选择后信息区 */
+.post-choice-stack {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+/* 分数变化说明 */
+.score-change-box {
+  display: none;
+  background: linear-gradient(135deg, #fff8ec, #f7ead1);
+  border: 1px solid var(--cream-dark);
+  border-left: 4px solid var(--gold-light);
+  border-radius: 4px;
+  padding: 14px 16px;
+}
+.score-change-box.visible { display: block; }
+.score-change-title {
+  font-size: 0.78rem;
+  color: var(--gold);
+  letter-spacing: 0.16em;
+  margin-bottom: 8px;
+}
+.score-change-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.score-change-item + .score-change-item {
+  margin-top: 10px;
+}
+.score-change-label {
+  font-size: 0.9rem;
+  color: var(--red);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.score-change-reason {
+  font-size: 0.85rem;
+  color: var(--ink-light);
+  line-height: 1.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* 后果文本 */
 .consequence-box {
   display: none;
@@ -467,12 +541,33 @@ body::before {
   border: 1px solid var(--gold-light);
   border-radius: 4px;
   padding: 18px 20px;
-  margin-bottom: 20px;
   font-size: 0.95rem;
   line-height: 1.8;
   color: var(--ink);
-  min-height: 60px;
 }
+.consequence-box.visible { display: block; }
+.consequence-title {
+  font-size: 0.78rem;
+  color: var(--gold);
+  letter-spacing: 0.18em;
+  margin-bottom: 10px;
+}
+
+/* 小贴士 */
+.tips-box {
+  display: none;
+  align-items: flex-start;
+  gap: 10px;
+  background: linear-gradient(135deg, #fdf6e3, #f5e8c0);
+  border: 1px solid var(--gold-light);
+  border-radius: 4px;
+  padding: 12px 16px;
+  font-size: 0.85rem;
+  color: var(--ink-light);
+  line-height: 1.75;
+  animation: fadeIn 0.5s ease;
+}
+.tips-box.visible { display: flex; }
 
 /* 历史注释 */
 .note-toggle-btn {
@@ -793,22 +888,7 @@ body::before {
 }
 .btn-home:hover { border-color: var(--brown); }
 
-/* 小贴士 */
-.tips-box {
-  display: none;
-  align-items: flex-start;
-  gap: 10px;
-  background: linear-gradient(135deg, #fdf6e3, #f5e8c0);
-  border: 1px solid var(--gold-light);
-  border-radius: 4px;
-  padding: 12px 16px;
-  margin-bottom: 16px;
-  font-size: 0.85rem;
-  color: var(--ink-light);
-  line-height: 1.75;
-  animation: fadeIn 0.5s ease;
-}
-.tips-box.visible { display: flex; }
+
 .tips-icon {
   flex-shrink: 0;
   font-size: 1rem;

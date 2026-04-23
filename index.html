@@ -28,7 +28,7 @@
     </div>
 
     <div style="text-align:center; margin-top:48px; font-size:0.8rem; color:var(--cream-dark);">
-      已开放：戚继光抗倭 · 郑和下西洋 · 张居正改革 &nbsp;|&nbsp; 更多历史即将解锁
+      已开放：戚继光抗倭 · 郑和下西洋 · 张居正改革 &nbsp;|&nbsp; 即将开放：北京保卫战 · 隆庆开关 · 本草纲目
     </div>
   </div>
 
@@ -59,12 +59,36 @@
         available: true
       },
       {
+        id: 'beijing-defense',
+        title: '北京保卫战',
+        period: '正统十四年',
+        desc: '土木堡之变后京师震动，于谦力主固守北京，调兵整饬城防，在国运飘摇之际撑起大明最后一道屏障。',
+        tag: '守城 · 危局 · 决断',
+        available: false
+      },
+      {
+        id: 'longqing-opening',
+        title: '隆庆开关',
+        period: '隆庆年间',
+        desc: '海禁松动，月港开市，朝廷在财赋、海贸与边海秩序之间艰难权衡，大明对外贸易由此改写。',
+        tag: '海贸 · 国策 · 转折',
+        available: false
+      },
+      {
+        id: 'compendium-of-materia-medica',
+        title: '本草纲目',
+        period: '嘉靖—万历年间',
+        desc: '李时珍穷数十年心力，辨药性、订讹误、访民间验方，只为写成一部泽被后世的医学巨著。',
+        tag: '医学 · 求真 · 著述',
+        available: false
+      },
+      {
         id: 'jingnan',
         title: '靖难之役',
         period: '建文—永乐年间',
         desc: '燕王朱棣以"清君侧"之名起兵，与建文帝展开历时三年的皇位之争，历史的走向悬于一线。',
         tag: '战争 · 忠义 · 抉择',
-        available: false
+        available: true
       },
       {
         id: 'zheng-chenggong',
@@ -85,6 +109,7 @@
     ];
 
     const grid = document.getElementById('event-grid');
+    events.sort((a, b) => Number(b.available) - Number(a.available));
     events.forEach(ev => {
       const card = document.createElement('div');
       card.className = 'event-card fade-in' + (ev.available ? '' : ' locked');

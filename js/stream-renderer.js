@@ -22,9 +22,14 @@ const StreamRenderer = (() => {
   }
 
   // 追加单个字符（用于真正流式输出）
+  let scrollTimer = null;
   function appendChar(el, char) {
     el.textContent += char;
-    el.scrollIntoView({ block: 'end', behavior: 'smooth' });
+    if (scrollTimer) return;
+    scrollTimer = setTimeout(() => {
+      scrollTimer = null;
+      window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'auto' });
+    }, 32);
   }
 
   // 渲染场景数据到页面
@@ -72,6 +77,9 @@ const StreamRenderer = (() => {
       btn.dataset.reputationDelta = opt.reputation_delta;
       btn.dataset.riskDelta = opt.risk_delta;
       btn.dataset.insightDelta = opt.insight_delta;
+      btn.dataset.reputationReason = opt.score_reason?.reputation || '';
+      btn.dataset.riskReason = opt.score_reason?.risk || '';
+      btn.dataset.insightReason = opt.score_reason?.insight || '';
       btn.innerHTML = `<span class="opt-label">${opt.id}</span><span class="opt-text">${opt.text}</span>`;
       btn.style.animationDelay = `${idx * 100}ms`;
       optionsEl.appendChild(btn);
@@ -86,11 +94,15 @@ const StreamRenderer = (() => {
 
   // 渲染后果文本（流式追加模式）
   function renderConsequence(el, onStart) {
-    el.textContent = '';
+    el.innerHTML = '<div class="consequence-title">局势余波</div><div class="consequence-body"></div>';
+    el.classList.add('visible');
+    const bodyEl = el.querySelector('.consequence-body');
     if (onStart) onStart();
     return {
-      onChunk: (char) => appendChar(el, char),
-      onDone: () => {}
+      onChunk: (char) => appendChar(bodyEl, char),
+      onDone: () => {
+        window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'auto' });
+      }
     };
   }
 

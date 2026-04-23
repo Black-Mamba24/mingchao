@@ -52,14 +52,6 @@
       </div>
       <span id="loading-text">AI 正在构建历史场景……</span>
     </div>
-    <div class="tips-box" id="tips-box">
-      <span class="tips-icon">📖</span>
-      <div>
-        <div class="tips-label">历史小贴士</div>
-        <span id="tips-text"></span>
-      </div>
-    </div>
-
     <!-- 错误重试区 -->
     <div id="error-box" style="display:none; padding:16px 0;">
       <div id="error-text" style="color:var(--red); font-size:0.92rem;"></div>
@@ -87,8 +79,21 @@
       <!-- 选项 -->
       <div class="options-grid" id="options-grid" style="display:none"></div>
 
-      <!-- 后果描述 -->
-      <div class="consequence-box" id="consequence-box" style="display:none"></div>
+      <div class="post-choice-stack" id="post-choice-stack">
+        <!-- 分数变化说明 -->
+        <div class="score-change-box" id="score-change-box"></div>
+
+        <!-- 后果描述 -->
+        <div class="consequence-box" id="consequence-box"></div>
+
+        <div class="tips-box" id="tips-box">
+          <span class="tips-icon">📖</span>
+          <div>
+            <div class="tips-label">历史小贴士</div>
+            <span id="tips-text"></span>
+          </div>
+        </div>
+      </div>
 
       <!-- 继续按钮 -->
       <div style="text-align:center">
@@ -115,6 +120,11 @@
     let eventData = null;
     let currentRoleId = null;
     let isFirstScene = true; // 第一次进入不显示小贴士
+    let prefetchedScene = null;
+    let prefetchedStateKey = '';
+    let prefetchedScenePromise = null;
+    let pendingTipPromise = null;
+    let pendingTipKey = '';
 
     // 兼容 acts 为数组（旧格式）或以 roleId 为 key 的对象（新格式）
     function getActs() {
@@ -178,16 +188,25 @@
       document.getElementById('question-text').textContent   = '';
       document.getElementById('options-grid').innerHTML      = '';
       document.getElementById('options-grid').style.display  = 'none';
-      document.getElementById('consequence-box').textContent = '';
-      document.getElementById('consequence-box').style.display = 'none';
+      document.getElementById('score-change-box').innerHTML = '';
+      document.getElementById('score-change-box').classList.remove('visible');
+      document.getElementById('consequence-box').innerHTML = '';
+      document.getElementById('consequence-box').classList.remove('visible');
       document.getElementById('continue-btn').style.display  = 'none';
+      setLoading(false);
+      hideTip();
       document.getElementById('note-toggle').style.display   = 'none';
       document.getElementById('note-panel').classList.remove('visible');
       hideError();
     }
 
+    function buildSceneKey(state) {
+      return `${state.eventId}|${state.roleId}|${state.act}|${state.scene}|${state.reputation}|${state.risk}|${state.insight}`;
+    }
+
     // ── 小贴士 ──────────────────────────────────────────────
     function showTip(text) {
+      if (!text) return;
       document.getElementById('tips-text').textContent = text;
       document.getElementById('tips-box').classList.add('visible');
     }
@@ -196,8 +215,7 @@
       document.getElementById('tips-text').textContent = '';
     }
 
-    // 与当前幕/场强相关的小贴士，并行请求不阻塞主流程
-    async function fetchAndShowTip(act, scene, state) {
+    async function fetchTip(act, scene, state) {
       try {
         const msgs = PromptBuilder.buildTipMessages(eventData, currentRoleId, act, scene, state);
         const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
@@ -213,13 +231,27 @@
             max_tokens: 160
           })
         });
-        if (!resp.ok) return;
+        if (!resp.ok) return '';
         const data = await resp.json();
-        const tip = data.choices?.[0]?.message?.content?.trim();
-        if (tip) showTip(tip);
+        return data.choices?.[0]?.message?.content?.trim() || '';
       } catch (e) {
-        // 贴士失败静默处理
+        return '';
       }
+    }
+
+    function prefetchTip(state) {
+      const tipKey = buildSceneKey(state);
+      if (pendingTipPromise && pendingTipKey === tipKey) return pendingTipPromise;
+      pendingTipKey = tipKey;
+      const promise = fetchTip(state.act, state.scene, state)
+        .then(tipText => ({ key: tipKey, text: tipText || '' }));
+      pendingTipPromise = promise;
+      promise.finally(() => {
+        if (pendingTipPromise === promise) {
+          pendingTipPromise = null;
+        }
+      });
+      return promise;
     }
 
     // ── loading 显示/隐藏 ────────────────────────────────────
@@ -237,6 +269,87 @@
       document.getElementById('error-box').style.display = 'none';
     }
 
+    function renderScoreChange(scoreImpact) {
+      const box = document.getElementById('score-change-box');
+      const items = [
+        { label: '声望', delta: scoreImpact.deltas.reputation, reason: scoreImpact.reasons.reputation },
+        { label: '风险', delta: scoreImpact.deltas.risk, reason: scoreImpact.reasons.risk },
+        { label: '历史洞察', delta: scoreImpact.deltas.insight, reason: scoreImpact.reasons.insight }
+      ].filter(item => item.delta !== 0);
+
+      if (!items.length) {
+        box.innerHTML = '<div class="score-change-title">局势反馈</div><div class="score-change-item"><span class="score-change-label">三项数值未明显变化</span><span class="score-change-reason">：此举更多是在稳住局面。</span></div>';
+        box.classList.add('visible');
+        return;
+      }
+
+      box.innerHTML = `
+        <div class="score-change-title">局势反馈</div>
+        ${items.map(item => `
+          <div class="score-change-item">
+            <span class="score-change-label">${item.label} ${item.delta > 0 ? '+' : ''}${item.delta}</span><span class="score-change-reason">：${item.reason || '局势因此出现了相应波动。'}</span>
+          </div>
+        `).join('')}
+      `;
+      box.classList.add('visible');
+    }
+
+    async function renderSceneData(sceneData) {
+      if (sceneData.npc_name) {
+        document.getElementById('npc-avatar').textContent = sceneData.npc_name[0];
+      }
+      if (sceneData.historical_note) {
+        document.getElementById('note-text').textContent = sceneData.historical_note;
+      }
+
+      await StreamRenderer.renderScene(sceneData, {
+        sceneEl:    document.getElementById('scene-text'),
+        npcEl:      document.getElementById('npc-box'),
+        questionEl: document.getElementById('question-text'),
+        optionsEl:  document.getElementById('options-grid'),
+        noteEl:     document.getElementById('note-panel')
+      });
+
+      const currentState = StateManager.get();
+      pendingTipPromise = null;
+      pendingTipKey = '';
+      prefetchTip(currentState);
+      bindOptionEvents();
+      isFirstScene = false;
+    }
+
+    async function prefetchNextScene() {
+      const state = StateManager.get();
+      if (state.finished) {
+        prefetchedScene = null;
+        prefetchedStateKey = '';
+        prefetchedScenePromise = null;
+        return null;
+      }
+
+      const sceneKey = buildSceneKey(state);
+      if (prefetchedScene && prefetchedStateKey === sceneKey) return prefetchedScene;
+      if (prefetchedScenePromise && prefetchedStateKey === sceneKey) return prefetchedScenePromise;
+
+      prefetchedStateKey = sceneKey;
+      prefetchedScenePromise = (async () => {
+        try {
+          const messages = PromptBuilder.buildMessages(eventData, state.roleId, state.act, state.scene, state);
+          const sceneData = await LLMClient.chat(messages);
+          prefetchedScene = sceneData;
+          return sceneData;
+        } catch (e) {
+          prefetchedScene = null;
+          prefetchedStateKey = '';
+          throw e;
+        } finally {
+          prefetchedScenePromise = null;
+        }
+      })();
+
+      return prefetchedScenePromise;
+    }
+
     // ── 加载并渲染当前场景 ───────────────────────────────────
     async function loadScene() {
       const state = StateManager.get();
@@ -245,49 +358,44 @@
       updateStatusBar();
       updateActBadge(state.act);
 
-      // 1. 先清空场景区所有内容
       clearScene();
+      const sceneKey = buildSceneKey(state);
 
-      // 2. 显示 loading
-      setLoading(true, 'AI 正在构建历史场景……');
-
-      // 3. 非第一个场景才并行拉取小贴士
-      if (!isFirstScene) {
-        fetchAndShowTip(state.act, state.scene, state);
+      if (prefetchedScene && prefetchedStateKey === sceneKey) {
+        const sceneData = prefetchedScene;
+        prefetchedScene = null;
+        prefetchedStateKey = '';
+        StateManager.pushHistory('assistant', JSON.stringify(sceneData));
+        await renderSceneData(sceneData);
+        return;
       }
 
-      // 4. 请求主场景内容
+      if (prefetchedScenePromise && prefetchedStateKey === sceneKey) {
+        setLoading(true, 'AI 正在构建历史场景……');
+        try {
+          const sceneData = await prefetchedScenePromise;
+          prefetchedScene = null;
+          prefetchedStateKey = '';
+          StateManager.pushHistory('assistant', JSON.stringify(sceneData));
+          setLoading(false);
+          await renderSceneData(sceneData);
+          return;
+        } catch (e) {
+          setLoading(false);
+        }
+      }
+
+      setLoading(true, 'AI 正在构建历史场景……');
+
       try {
         const messages  = PromptBuilder.buildMessages(eventData, state.roleId, state.act, state.scene, state);
         const sceneData = await LLMClient.chat(messages);
 
         StateManager.pushHistory('assistant', JSON.stringify(sceneData));
-
-        // 5. 隐藏 loading 和小贴士，渲染场景
         setLoading(false);
-        hideTip();
-
-        if (sceneData.npc_name) {
-          document.getElementById('npc-avatar').textContent = sceneData.npc_name[0];
-        }
-        if (sceneData.historical_note) {
-          document.getElementById('note-text').textContent = sceneData.historical_note;
-        }
-
-        await StreamRenderer.renderScene(sceneData, {
-          sceneEl:    document.getElementById('scene-text'),
-          npcEl:      document.getElementById('npc-box'),
-          questionEl: document.getElementById('question-text'),
-          optionsEl:  document.getElementById('options-grid'),
-          noteEl:     document.getElementById('note-panel')
-        });
-
-        bindOptionEvents();
-        isFirstScene = false;
-
+        await renderSceneData(sceneData);
       } catch (e) {
         setLoading(false);
-        hideTip();
         showError('AI 生成失败：' + e.message);
       }
     }
@@ -307,31 +415,67 @@
           btn.classList.add('selected');
 
           const state = StateManager.get();
+          const beforeScores = {
+            reputation: state.reputation,
+            risk: state.risk,
+            insight: state.insight
+          };
+          const scoreImpact = {
+            optionText: optText,
+            before: beforeScores,
+            deltas: {
+              reputation: repDelta,
+              risk: riskDelta,
+              insight: insightDelta
+            },
+            after: {
+              reputation: Math.max(0, Math.min(10, beforeScores.reputation + repDelta)),
+              risk: Math.max(0, Math.min(10, beforeScores.risk + riskDelta)),
+              insight: Math.max(0, Math.min(10, beforeScores.insight + insightDelta))
+            },
+            reasons: {
+              reputation: btn.dataset.reputationReason || '',
+              risk: btn.dataset.riskReason || '',
+              insight: btn.dataset.insightReason || ''
+            }
+          };
+
           StateManager.recordChoice(state.act, state.scene, btn.dataset.id, optText);
           StateManager.pushHistory('user', `我选择：${optText}`);
           StateManager.applyDeltas({ reputation_delta: repDelta, risk_delta: riskDelta, insight_delta: insightDelta });
+          StateManager.setLastScoreChange(scoreImpact);
           updateStatusBar();
+          renderScoreChange(scoreImpact);
 
           // 生成后果
           const box = document.getElementById('consequence-box');
-          box.style.display = 'block';
-          box.textContent   = '';
+          box.innerHTML = '<div class="consequence-title">局势余波</div><div class="consequence-body"></div>';
+          box.classList.add('visible');
           setLoading(true, 'AI 正在推演后果……');
 
           let consequenceText = '';
+          const currentTipPromise = pendingTipPromise || prefetchTip(state);
+          setLoading(true, 'AI 正在推演后果……');
           try {
             const msgs = PromptBuilder.buildConsequenceMessages(
-              eventData, state.roleId, optText, StateManager.get()
+              eventData, state.roleId, optText, StateManager.get(), scoreImpact
             );
-            setLoading(false);
             const { onChunk, onDone } = StreamRenderer.renderConsequence(box);
             const fullText = await LLMClient.chatStream(msgs, onChunk, onDone);
             StateManager.pushHistory('assistant', fullText);
             consequenceText = fullText;
           } catch (e) {
-            setLoading(false);
-            box.textContent = '（历史的齿轮继续转动……）';
-            consequenceText = box.textContent;
+            box.innerHTML = '<div class="consequence-title">局势余波</div><div class="consequence-body">（历史的齿轮继续转动……）</div>';
+            box.classList.add('visible');
+            consequenceText = '（历史的齿轮继续转动……）';
+          }
+
+          setLoading(false);
+          if (currentTipPromise) {
+            const tipResult = await currentTipPromise;
+            if (tipResult?.key === buildSceneKey(state)) {
+              showTip(tipResult.text);
+            }
           }
 
           // 记录完整场景上下文，供下一场景承上启下
@@ -339,10 +483,12 @@
           StateManager.setLastSceneContext(sceneText, optText, consequenceText);
           StateManager.nextScene();
 
+          const nextState = StateManager.get();
+          prefetchNextScene();
+
           // 显示继续按钮
           const continueBtn = document.getElementById('continue-btn');
-          const newState    = StateManager.get();
-          continueBtn.textContent   = newState.finished ? '查看结局 →' : '继续 →';
+          continueBtn.textContent   = nextState.finished ? '查看结局 →' : '继续 →';
           continueBtn.style.display = 'inline-block';
         });
       });
