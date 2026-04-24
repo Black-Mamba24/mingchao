@@ -64,7 +64,7 @@
         period: '正统十四年',
         desc: '土木堡之变后京师震动，于谦力主固守北京，调兵整饬城防，在国运飘摇之际撑起大明最后一道屏障。',
         tag: '守城 · 危局 · 决断',
-        available: false
+        available: true
       },
       {
         id: 'longqing-opening',
@@ -109,8 +109,21 @@
     ];
 
     const grid = document.getElementById('event-grid');
-    events.sort((a, b) => Number(b.available) - Number(a.available));
-    events.forEach(ev => {
+    const availableOrder = [
+      'jingnan',
+      'zheng-he',
+      'beijing-defense',
+      'anti-wako',
+      'zhang-juzheng'
+    ];
+    const availableRank = new Map(availableOrder.map((id, index) => [id, index]));
+    const orderedEvents = [
+      ...events.filter(ev => ev.available).sort((a, b) => {
+        return (availableRank.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (availableRank.get(b.id) ?? Number.MAX_SAFE_INTEGER);
+      }),
+      ...events.filter(ev => !ev.available)
+    ];
+    orderedEvents.forEach(ev => {
       const card = document.createElement('div');
       card.className = 'event-card fade-in' + (ev.available ? '' : ' locked');
       card.innerHTML = `
