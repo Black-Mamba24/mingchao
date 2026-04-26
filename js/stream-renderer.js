@@ -3,22 +3,136 @@
  */
 const StreamRenderer = (() => {
 
-  // 打字机效果：逐字符渲染
+  function normalizeTermKey(value) {
+    return (value || '').trim();
+  }
+
+  function normalizeAnnotations(annotations) {
+    return Array.isArray(annotations) ? annotations : [];
+  }
+
+  function buildSegments(text, annotations = [], introducedTerms = []) {
+    const sourceText = text || '';
+    const seenTerms = new Set(introducedTerms.map(normalizeTermKey).filter(Boolean));
+    const seenKeysInBlock = new Set();
+    const matches = [];
+
+    normalizeAnnotations(annotations).forEach(annotation => {
+      const term = (annotation?.term || '').trim();
+      const intro = (annotation?.intro || '').trim();
+      const key = normalizeTermKey(annotation?.key || term);
+      if (!term || !intro || intro.length > 300 || !key || seenTerms.has(key) || seenKeysInBlock.has(key)) return;
+      const start = sourceText.indexOf(term);
+      if (start === -1) return;
+      matches.push({
+        start,
+        end: start + term.length,
+        key,
+        term,
+        intro,
+        category: (annotation?.category || 'other').trim() || 'other'
+      });
+      seenKeysInBlock.add(key);
+    });
+
+    matches.sort((a, b) => a.start - b.start || b.term.length - a.term.length);
+
+    const accepted = [];
+    let lastEnd = -1;
+    for (const match of matches) {
+      if (match.start < lastEnd) continue;
+      accepted.push(match);
+      lastEnd = match.end;
+    }
+
+    const segments = [];
+    let cursor = 0;
+    accepted.forEach(match => {
+      if (match.start > cursor) {
+        segments.push({ type: 'text', text: sourceText.slice(cursor, match.start) });
+      }
+      segments.push({ type: 'annotation', text: match.term, annotation: match });
+      cursor = match.end;
+    });
+    if (cursor < sourceText.length) {
+      segments.push({ type: 'text', text: sourceText.slice(cursor) });
+    }
+
+    return { segments, introducedKeys: accepted.map(item => item.key) };
+  }
+
+  function createAnnotationNode(annotation) {
+    const span = document.createElement('span');
+    span.className = 'term-annotation';
+    span.dataset.term = annotation.term;
+    span.dataset.key = annotation.key;
+    span.dataset.category = annotation.category;
+    span.dataset.intro = annotation.intro;
+    span.tabIndex = 0;
+    return span;
+  }
+
   function typewrite(el, text, speed = 30) {
+    return typewriteAnnotated(el, text, [], [], speed);
+  }
+
+  function typewriteAnnotated(el, text, annotations = [], introducedTerms = [], speed = 30) {
     return new Promise(resolve => {
       el.textContent = '';
-      let i = 0;
+      const { segments, introducedKeys } = buildSegments(text, annotations, introducedTerms);
+      let segmentIndex = 0;
+      let charIndex = 0;
+      let currentNode = null;
+
       function next() {
-        if (i < text.length) {
-          el.textContent += text[i++];
+        const segment = segments[segmentIndex];
+        if (!segment) {
+          resolve(introducedKeys);
+          return;
+        }
+
+        if (!currentNode) {
+          currentNode = segment.type === 'annotation'
+            ? createAnnotationNode(segment.annotation)
+            : document.createTextNode('');
+          el.appendChild(currentNode);
+        }
+
+        if (charIndex < segment.text.length) {
+          const char = segment.text[charIndex++];
+          if (segment.type === 'annotation') {
+            currentNode.textContent += char;
+          } else {
+            currentNode.textContent += char;
+          }
           el.scrollIntoView({ block: 'end', behavior: 'smooth' });
           setTimeout(next, speed);
-        } else {
-          resolve();
+          return;
         }
+
+        segmentIndex += 1;
+        charIndex = 0;
+        currentNode = null;
+        next();
       }
+
       next();
     });
+  }
+
+  function renderAnnotatedText(el, text, annotations = [], introducedTerms = []) {
+    el.textContent = '';
+    const { segments, introducedKeys } = buildSegments(text, annotations, introducedTerms);
+    segments.forEach(segment => {
+      if (segment.type === 'annotation') {
+        const node = createAnnotationNode(segment.annotation);
+        node.textContent = segment.text;
+        el.appendChild(node);
+        return;
+      }
+      el.appendChild(document.createTextNode(segment.text));
+    });
+    return introducedKeys;
   }
 
   // 追加单个字符（用于真正流式输出）
@@ -33,8 +147,9 @@ const StreamRenderer = (() => {
   }
 
   // 渲染场景数据到页面
-  async function renderScene(sceneData, containers) {
+  async function renderScene(sceneData, containers, introducedTerms = []) {
     const { sceneEl, npcEl, questionEl, optionsEl, noteEl } = containers;
+    const newlyIntroduced = [];
 
     // 清空旧内容
     optionsEl.innerHTML = '';
@@ -44,7 +159,8 @@ const StreamRenderer = (() => {
 
     // 打字机输出场景描述
     sceneEl.textContent = '';
-    await typewrite(sceneEl, sceneData.scene, 28);
+    const sceneKeys = await typewriteAnnotated(sceneEl, sceneData.scene, sceneData.scene_annotations, introducedTerms.concat(newlyIntroduced), 28);
+    newlyIntroduced.push(...sceneKeys);
 
     // NPC 对话
     if (sceneData.npc_dialogue && npcEl) {
@@ -52,12 +168,16 @@ const StreamRenderer = (() => {
       const nameEl = npcEl.querySelector('.npc-name');
       const textEl = npcEl.querySelector('.npc-text');
       if (nameEl) nameEl.textContent = sceneData.npc_name || '';
-      if (textEl) await typewrite(textEl, `"${sceneData.npc_dialogue}"`, 32);
+      if (textEl) {
+        const npcKeys = await typewriteAnnotated(textEl, `"${sceneData.npc_dialogue}"`, sceneData.npc_annotations, introducedTerms.concat(newlyIntroduced), 32);
+        newlyIntroduced.push(...npcKeys);
+      }
     }
 
     // 问题
     if (questionEl) {
-      await typewrite(questionEl, sceneData.question, 35);
+      const questionKeys = await typewriteAnnotated(questionEl, sceneData.question, sceneData.question_annotations, introducedTerms.concat(newlyIntroduced), 35);
+      newlyIntroduced.push(...questionKeys);
     }
 
     // 历史注释
@@ -71,6 +191,8 @@ const StreamRenderer = (() => {
     optionsEl.style.display = 'grid';
     sceneData.options.forEach((opt, idx) => {
       const btn = document.createElement('button');
+      const label = document.createElement('span');
+      const text = document.createElement('span');
       btn.className = 'option-btn';
       btn.dataset.id = opt.id;
       btn.dataset.text = opt.text;
@@ -80,7 +202,12 @@ const StreamRenderer = (() => {
       btn.dataset.reputationReason = opt.score_reason?.reputation || '';
       btn.dataset.riskReason = opt.score_reason?.risk || '';
       btn.dataset.insightReason = opt.score_reason?.insight || '';
-      btn.innerHTML = `<span class="opt-label">${opt.id}</span><span class="opt-text">${opt.text}</span>`;
+      label.className = 'opt-label';
+      label.textContent = opt.id;
+      text.className = 'opt-text';
+      text.textContent = opt.text;
+      btn.appendChild(label);
+      btn.appendChild(text);
       btn.style.animationDelay = `${idx * 100}ms`;
       optionsEl.appendChild(btn);
     });
@@ -90,6 +217,8 @@ const StreamRenderer = (() => {
       const toggleBtn = document.getElementById('note-toggle');
       if (toggleBtn) toggleBtn.style.display = 'flex';
     }
+
+    return newlyIntroduced;
   }
 
   // 渲染后果文本（流式追加模式）
@@ -106,9 +235,17 @@ const StreamRenderer = (() => {
     };
   }
 
+  async function renderAnnotatedConsequence(el, text, annotations = [], introducedTerms = []) {
+    el.innerHTML = '<div class="consequence-title">局势余波</div><div class="consequence-body"></div>';
+    el.classList.add('visible');
+    const bodyEl = el.querySelector('.consequence-body');
+    const introducedKeys = await typewriteAnnotated(bodyEl, text, annotations, introducedTerms, 26);
+    return introducedKeys;
+  }
+
   function delay(ms) {
     return new Promise(r => setTimeout(r, ms));
   }
 
-  return { typewrite, appendChar, renderScene, renderConsequence, delay };
+  return { typewrite, typewriteAnnotated, renderAnnotatedText, appendChar, renderScene, renderConsequence, renderAnnotatedConsequence, delay };
 })();

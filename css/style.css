@@ -569,6 +569,60 @@ body::before {
 }
 .tips-box.visible { display: flex; }
 
+/* 名词解释 */
+.term-annotation {
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: var(--gold);
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, text-decoration-color 0.15s ease;
+}
+.term-annotation:hover,
+.term-annotation:focus-visible,
+.term-annotation.is-active {
+  background: rgba(201, 162, 39, 0.16);
+  color: var(--red);
+  text-decoration-color: var(--red);
+  outline: none;
+}
+.term-popover {
+  display: none;
+  position: fixed;
+  left: 12px;
+  top: 12px;
+  width: min(320px, calc(100vw - 24px));
+  background: var(--paper);
+  border: 1px solid var(--gold-light);
+  border-radius: 6px;
+  padding: 14px 16px;
+  box-shadow: 0 10px 28px var(--shadow);
+  z-index: 180;
+}
+.term-popover.visible { display: block; }
+.term-popover-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.term-popover-title {
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+.term-popover-category {
+  font-size: 0.74rem;
+  color: var(--gold);
+  letter-spacing: 0.12em;
+}
+.term-popover-body {
+  font-size: 0.84rem;
+  color: var(--ink-light);
+  line-height: 1.75;
+}
+
 /* 历史注释 */
 .note-toggle-btn {
   display: none;
@@ -887,7 +941,69 @@ body::before {
   border: 1px solid var(--cream-dark);
 }
 .btn-home:hover { border-color: var(--brown); }
-
+.btn-donate {
+  background: linear-gradient(135deg, #b8892d, var(--gold));
+  color: white;
+  border: none;
+  padding: 13px 28px;
+  border-radius: 2px;
+  font-family: var(--font-main);
+  font-size: 0.9rem;
+  letter-spacing: 0.15em;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.btn-donate:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(139, 105, 20, 0.22);
+}
+.donate-modal-box {
+  width: min(420px, calc(100vw - 32px));
+  text-align: center;
+}
+.donate-amounts {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 18px 0 20px;
+}
+.donate-amount {
+  min-width: 88px;
+  padding: 10px 14px;
+  border: 1px solid var(--cream-dark);
+  background: white;
+  color: var(--brown);
+  border-radius: 3px;
+  font-family: var(--font-main);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.donate-amount.active,
+.donate-amount:hover {
+  border-color: var(--red);
+  color: var(--red);
+  background: #fff6ea;
+}
+.donate-qr-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+.donate-qr {
+  width: min(240px, 62vw);
+  max-width: 240px;
+  border-radius: 6px;
+  border: 1px solid var(--cream-dark);
+  background: white;
+}
+.donate-caption {
+  font-size: 0.82rem;
+  color: var(--brown);
+}
+.donate-modal-box .modal-actions {
+  justify-content: center;
+}
 
 .tips-icon {
   flex-shrink: 0;

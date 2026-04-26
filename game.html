@@ -50,7 +50,7 @@
       <div class="dot-spin">
         <span></span><span></span><span></span>
       </div>
-      <span id="loading-text">AI 正在构建历史场景……</span>
+      <span id="loading-text">DeepSeek-V4 正在构建历史场景……</span>
     </div>
     <!-- 错误重试区 -->
     <div id="error-box" style="display:none; padding:16px 0;">
@@ -110,6 +110,14 @@
   <div class="note-panel" id="note-panel">
     <div class="note-header">📜 历史小知识</div>
     <div class="note-text" id="note-text"></div>
+  </div>
+
+  <div class="term-popover" id="term-popover">
+    <div class="term-popover-title-row">
+      <span class="term-popover-title" id="term-popover-title"></span>
+      <span class="term-popover-category" id="term-popover-category"></span>
+    </div>
+    <div class="term-popover-body" id="term-popover-body"></div>
   </div>
 
   <script src="js/state-manager.js"></script>
@@ -195,6 +203,7 @@
       document.getElementById('continue-btn').style.display  = 'none';
       setLoading(false);
       hideTip();
+      closeTermPopover();
       document.getElementById('note-toggle').style.display   = 'none';
       document.getElementById('note-panel').classList.remove('visible');
       hideError();
@@ -294,6 +303,52 @@
       box.classList.add('visible');
     }
 
+    function getCategoryLabel(category) {
+      const labels = {
+        person: '人物',
+        place: '地名',
+        weapon: '武器',
+        era: '年号',
+        office: '职位',
+        institution: '机构',
+        event: '事件',
+        other: '名词'
+      };
+      return labels[category] || '名词';
+    }
+
+    function closeTermPopover() {
+      document.querySelectorAll('.term-annotation.is-active').forEach(el => el.classList.remove('is-active'));
+      document.getElementById('term-popover').classList.remove('visible');
+    }
+
+    function openTermPopover(target) {
+      const popover = document.getElementById('term-popover');
+      const titleEl = document.getElementById('term-popover-title');
+      const categoryEl = document.getElementById('term-popover-category');
+      const bodyEl = document.getElementById('term-popover-body');
+      const rect = target.getBoundingClientRect();
+      const maxWidth = Math.min(320, window.innerWidth - 24);
+
+      document.querySelectorAll('.term-annotation.is-active').forEach(el => el.classList.remove('is-active'));
+      target.classList.add('is-active');
+      titleEl.textContent = target.dataset.term || '';
+      categoryEl.textContent = getCategoryLabel(target.dataset.category);
+      bodyEl.textContent = target.dataset.intro || '';
+      popover.style.width = `${maxWidth}px`;
+      popover.classList.add('visible');
+
+      const popRect = popover.getBoundingClientRect();
+      let left = rect.left;
+      let top = rect.bottom + 10;
+      if (left + popRect.width > window.innerWidth - 12) left = window.innerWidth - popRect.width - 12;
+      if (left < 12) left = 12;
+      if (top + popRect.height > window.innerHeight - 12) top = rect.top - popRect.height - 10;
+      if (top < 12) top = 12;
+      popover.style.left = `${left}px`;
+      popover.style.top = `${top}px`;
+    }
+
     async function renderSceneData(sceneData) {
       if (sceneData.npc_name) {
         document.getElementById('npc-avatar').textContent = sceneData.npc_name[0];
@@ -302,13 +357,14 @@
         document.getElementById('note-text').textContent = sceneData.historical_note;
       }
 
-      await StreamRenderer.renderScene(sceneData, {
+      const introducedKeys = await StreamRenderer.renderScene(sceneData, {
         sceneEl:    document.getElementById('scene-text'),
         npcEl:      document.getElementById('npc-box'),
         questionEl: document.getElementById('question-text'),
         optionsEl:  document.getElementById('options-grid'),
         noteEl:     document.getElementById('note-panel')
-      });
+      }, StateManager.getIntroducedTerms());
+      StateManager.markIntroducedTerms(introducedKeys);
 
       const currentState = StateManager.get();
       pendingTipPromise = null;
@@ -371,7 +427,7 @@
       }
 
       if (prefetchedScenePromise && prefetchedStateKey === sceneKey) {
-        setLoading(true, 'AI 正在构建历史场景……');
+        setLoading(true, 'DeepSeek-V4 正在构建历史场景……');
         try {
           const sceneData = await prefetchedScenePromise;
           prefetchedScene = null;
@@ -385,7 +441,7 @@
         }
       }
 
-      setLoading(true, 'AI 正在构建历史场景……');
+      setLoading(true, 'DeepSeek-V4 正在构建历史场景……');
 
       try {
         const messages  = PromptBuilder.buildMessages(eventData, state.roleId, state.act, state.scene, state);
@@ -460,10 +516,16 @@
             const msgs = PromptBuilder.buildConsequenceMessages(
               eventData, state.roleId, optText, StateManager.get(), scoreImpact
             );
-            const { onChunk, onDone } = StreamRenderer.renderConsequence(box);
-            const fullText = await LLMClient.chatStream(msgs, onChunk, onDone);
-            StateManager.pushHistory('assistant', fullText);
-            consequenceText = fullText;
+            const consequenceData = await LLMClient.chat(msgs);
+            const introducedKeys = await StreamRenderer.renderAnnotatedConsequence(
+              box,
+              consequenceData.consequence || '（历史的齿轮继续转动……）',
+              consequenceData.consequence_annotations,
+              StateManager.getIntroducedTerms()
+            );
+            StateManager.markIntroducedTerms(introducedKeys);
+            consequenceText = consequenceData.consequence || '（历史的齿轮继续转动……）';
+            StateManager.pushHistory('assistant', consequenceText);
           } catch (e) {
             box.innerHTML = '<div class="consequence-title">局势余波</div><div class="consequence-body">（历史的齿轮继续转动……）</div>';
             box.classList.add('visible');
@@ -515,12 +577,29 @@
     document.getElementById('note-toggle').addEventListener('click', () => {
       document.getElementById('note-panel').classList.toggle('visible');
     });
+    document.getElementById('scene-wrap').addEventListener('click', e => {
+      const target = e.target.closest('.term-annotation');
+      if (!target) return;
+      if (target.classList.contains('is-active')) {
+        closeTermPopover();
+        return;
+      }
+      openTermPopover(target);
+    });
     document.addEventListener('click', e => {
       const panel = document.getElementById('note-panel');
       const btn   = document.getElementById('note-toggle');
+      const termPopover = document.getElementById('term-popover');
+      const annotation = e.target.closest('.term-annotation');
       if (!panel.contains(e.target) && !btn.contains(e.target)) {
         panel.classList.remove('visible');
       }
+      if (!termPopover.contains(e.target) && !annotation) {
+        closeTermPopover();
+      }
+    });
+    window.addEventListener('resize', () => {
+      closeTermPopover();
     });
 
     // ── 启动 ─────────────────────────────────────────────────

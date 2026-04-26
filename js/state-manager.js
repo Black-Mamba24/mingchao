@@ -17,6 +17,7 @@ const StateManager = (() => {
     choices: [],            // 玩家每次选择记录
     lastSceneContext: null, // 上一场景的承接信息 {sceneText, chosenOption, consequenceText}
     lastScoreChange: null,
+    introducedTerms: [],
     finished: false
   });
 
@@ -83,6 +84,23 @@ const StateManager = (() => {
     save();
   }
 
+  function getIntroducedTerms() {
+    return Array.isArray(state.introducedTerms) ? [...state.introducedTerms] : [];
+  }
+
+  function hasIntroducedTerm(key) {
+    return getIntroducedTerms().includes((key || '').trim());
+  }
+
+  function markIntroducedTerms(keys = []) {
+    const normalized = keys.map(key => (key || '').trim()).filter(Boolean);
+    if (!normalized.length) return;
+    const merged = new Set(getIntroducedTerms());
+    normalized.forEach(key => merged.add(key));
+    state.introducedTerms = Array.from(merged);
+    save();
+  }
+
   function nextScene(actData) {
     state.scene += 1;
     // 每幕3个scene后进入下一幕
@@ -95,5 +113,5 @@ const StateManager = (() => {
     save();
   }
 
-  return { load, save, reset, get, set, applyDeltas, pushHistory, recordChoice, setLastSceneContext, setLastScoreChange, nextScene };
+  return { load, save, reset, get, set, applyDeltas, pushHistory, recordChoice, setLastSceneContext, setLastScoreChange, getIntroducedTerms, hasIntroducedTerm, markIntroducedTerms, nextScene };
 })();

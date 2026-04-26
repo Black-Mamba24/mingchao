@@ -61,6 +61,25 @@
     <div class="ending-actions fade-in">
       <button class="btn-restart" id="restart-btn">再次入局</button>
       <a href="index.html" class="btn-home">选择其他历史</a>
+      <button class="btn-donate" id="donate-btn">打赏作者</button>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="donate-modal">
+    <div class="modal-box donate-modal-box">
+      <h3>随缘添一把柴</h3>
+      <div class="donate-amounts" id="donate-amounts">
+        <button class="donate-amount" data-amount="0.01">0.01 元</button>
+        <button class="donate-amount active" data-amount="0.1">0.1 元</button>
+        <button class="donate-amount" data-amount="1">1 元</button>
+      </div>
+      <div class="donate-qr-wrap">
+        <img id="donate-qr" class="donate-qr" src="assets/donate-0.1.png" alt="微信收款码">
+      </div>
+      <div class="donate-caption" id="donate-caption">0.1 元：山高水长都是意，一角尽是真心意。</div>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="donate-close">我先继续回味结局</button>
+      </div>
     </div>
   </div>
 
@@ -129,6 +148,48 @@
       document.getElementById('historical-truth').textContent =
         '嘉靖四十年（1561年），戚继光率戚家军台州九战九捷，斩首两千余级，东南倭患为之一清。此后戚继光入闽，与俞大猷联合，至隆庆元年（1567年），福建倭患悉平。戚家军以"召之即来、来之能战、战之能胜"著称于世，戚继光亦成为明代军事史上最杰出的将领之一。';
     }
+
+    const donateQRCodes = {
+      '0.01': 'assets/donate-0.01.png',
+      '0.1': 'assets/donate-0.1.png',
+      '1': 'assets/donate-1.png'
+    };
+    const donateCaptions = {
+      '0.01': '0.01 元：万水千山总是情，一分也是真感情。',
+      '0.1': '0.1 元：山高水长都是意，一角尽是真心意。',
+      '1': '1 元：萍水相逢承厚意，一元也是一片心。'
+    };
+
+    function openDonateModal(amount = '0.1') {
+      const modal = document.getElementById('donate-modal');
+      const qr = document.getElementById('donate-qr');
+      const caption = document.getElementById('donate-caption');
+      document.querySelectorAll('.donate-amount').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.amount === amount);
+      });
+      qr.src = donateQRCodes[amount];
+      caption.textContent = donateCaptions[amount] || '';
+      modal.classList.add('visible');
+    }
+
+    function closeDonateModal() {
+      document.getElementById('donate-modal').classList.remove('visible');
+    }
+
+    document.getElementById('donate-btn').addEventListener('click', () => {
+      openDonateModal();
+    });
+
+    document.querySelectorAll('.donate-amount').forEach(btn => {
+      btn.addEventListener('click', () => {
+        openDonateModal(btn.dataset.amount);
+      });
+    });
+
+    document.getElementById('donate-close').addEventListener('click', closeDonateModal);
+    document.getElementById('donate-modal').addEventListener('click', e => {
+      if (e.target.id === 'donate-modal') closeDonateModal();
+    });
 
     // 再次入局（同角色重开）
     document.getElementById('restart-btn').addEventListener('click', () => {
