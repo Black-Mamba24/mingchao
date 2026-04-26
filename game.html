@@ -452,7 +452,7 @@
         await renderSceneData(sceneData);
       } catch (e) {
         setLoading(false);
-        showError('AI 生成失败：' + e.message);
+        showError('DeepSeek-V4 生成失败：' + e.message);
       }
     }
 
@@ -507,11 +507,11 @@
           const box = document.getElementById('consequence-box');
           box.innerHTML = '<div class="consequence-title">局势余波</div><div class="consequence-body"></div>';
           box.classList.add('visible');
-          setLoading(true, 'AI 正在推演后果……');
+          setLoading(true, 'DeepSeek-V4 正在推演后果……');
 
           let consequenceText = '';
           const currentTipPromise = pendingTipPromise || prefetchTip(state);
-          setLoading(true, 'AI 正在推演后果……');
+          setLoading(true, 'DeepSeek-V4 正在推演后果……');
           try {
             const msgs = PromptBuilder.buildConsequenceMessages(
               eventData, state.roleId, optText, StateManager.get(), scoreImpact
