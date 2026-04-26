@@ -363,7 +363,7 @@
         questionEl: document.getElementById('question-text'),
         optionsEl:  document.getElementById('options-grid'),
         noteEl:     document.getElementById('note-panel')
-      }, StateManager.getIntroducedTerms());
+      }, StateManager.getIntroducedTerms(), StateManager.getIntroducedTermAliases());
       StateManager.markIntroducedTerms(introducedKeys);
 
       const currentState = StateManager.get();
@@ -521,7 +521,8 @@
               box,
               consequenceData.consequence || '（历史的齿轮继续转动……）',
               consequenceData.consequence_annotations,
-              StateManager.getIntroducedTerms()
+              StateManager.getIntroducedTerms(),
+              StateManager.getIntroducedTermAliases()
             );
             StateManager.markIntroducedTerms(introducedKeys);
             consequenceText = consequenceData.consequence || '（历史的齿轮继续转动……）';

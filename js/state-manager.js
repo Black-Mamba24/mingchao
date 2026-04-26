@@ -18,6 +18,7 @@ const StateManager = (() => {
     lastSceneContext: null, // 上一场景的承接信息 {sceneText, chosenOption, consequenceText}
     lastScoreChange: null,
     introducedTerms: [],
+    introducedTermAliases: {},
     finished: false
   });
 
@@ -84,20 +85,51 @@ const StateManager = (() => {
     save();
   }
 
+  function normalizeIntroducedTerm(key) {
+    return (key || '').trim().replace(/[“”"'《》〈〉（）()，。！？；：、\s]/g, '').toLowerCase();
+  }
+
   function getIntroducedTerms() {
     return Array.isArray(state.introducedTerms) ? [...state.introducedTerms] : [];
   }
 
-  function hasIntroducedTerm(key) {
-    return getIntroducedTerms().includes((key || '').trim());
+  function getIntroducedTermAliases() {
+    const aliases = state.introducedTermAliases;
+    return aliases && typeof aliases === 'object' ? { ...aliases } : {};
   }
 
-  function markIntroducedTerms(keys = []) {
-    const normalized = keys.map(key => (key || '').trim()).filter(Boolean);
-    if (!normalized.length) return;
-    const merged = new Set(getIntroducedTerms());
-    normalized.forEach(key => merged.add(key));
-    state.introducedTerms = Array.from(merged);
+  function hasIntroducedTerm(key, term = '') {
+    const normalizedKey = normalizeIntroducedTerm(key);
+    const normalizedTerm = normalizeIntroducedTerm(term);
+    const introduced = getIntroducedTerms();
+    const aliases = getIntroducedTermAliases();
+    return introduced.includes(normalizedKey) || (normalizedTerm && aliases[normalizedTerm]);
+  }
+
+  function markIntroducedTerms(entries = []) {
+    const mergedTerms = new Set(getIntroducedTerms());
+    const aliases = getIntroducedTermAliases();
+    let changed = false;
+
+    entries.forEach(entry => {
+      const rawKey = typeof entry === 'string' ? entry : entry?.key;
+      const rawTerm = typeof entry === 'string' ? '' : entry?.term;
+      const normalizedKey = normalizeIntroducedTerm(rawKey || rawTerm);
+      const normalizedTerm = normalizeIntroducedTerm(rawTerm || rawKey);
+      if (!normalizedKey) return;
+      if (!mergedTerms.has(normalizedKey)) {
+        mergedTerms.add(normalizedKey);
+        changed = true;
+      }
+      if (normalizedTerm && aliases[normalizedTerm] !== normalizedKey) {
+        aliases[normalizedTerm] = normalizedKey;
+        changed = true;
+      }
+    });
+
+    if (!changed) return;
+    state.introducedTerms = Array.from(mergedTerms);
+    state.introducedTermAliases = aliases;
     save();
   }
 
@@ -113,5 +145,5 @@ const StateManager = (() => {
     save();
   }
 
-  return { load, save, reset, get, set, applyDeltas, pushHistory, recordChoice, setLastSceneContext, setLastScoreChange, getIntroducedTerms, hasIntroducedTerm, markIntroducedTerms, nextScene };
+  return { load, save, reset, get, set, applyDeltas, pushHistory, recordChoice, setLastSceneContext, setLastScoreChange, getIntroducedTerms, getIntroducedTermAliases, hasIntroducedTerm, markIntroducedTerms, nextScene };
 })();

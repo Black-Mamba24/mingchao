@@ -4,24 +4,32 @@
 const StreamRenderer = (() => {
 
   function normalizeTermKey(value) {
-    return (value || '').trim();
+    return (value || '').trim().replace(/[“”"'《》〈〉（）()，。！？；：、\s]/g, '').toLowerCase();
   }
 
   function normalizeAnnotations(annotations) {
     return Array.isArray(annotations) ? annotations : [];
   }
 
-  function buildSegments(text, annotations = [], introducedTerms = []) {
+  function buildSegments(text, annotations = [], introducedTerms = [], introducedAliases = {}) {
     const sourceText = text || '';
     const seenTerms = new Set(introducedTerms.map(normalizeTermKey).filter(Boolean));
+    const aliasMap = Object.entries(introducedAliases || {}).reduce((acc, [term, key]) => {
+      const normalizedTerm = normalizeTermKey(term);
+      const normalizedKey = normalizeTermKey(key);
+      if (normalizedTerm && normalizedKey) acc[normalizedTerm] = normalizedKey;
+      return acc;
+    }, {});
     const seenKeysInBlock = new Set();
     const matches = [];
 
     normalizeAnnotations(annotations).forEach(annotation => {
       const term = (annotation?.term || '').trim();
       const intro = (annotation?.intro || '').trim();
+      const normalizedTerm = normalizeTermKey(term);
       const key = normalizeTermKey(annotation?.key || term);
-      if (!term || !intro || intro.length > 300 || !key || seenTerms.has(key) || seenKeysInBlock.has(key)) return;
+      const aliasKey = aliasMap[normalizedTerm];
+      if (!term || !intro || intro.length > 300 || !key || seenTerms.has(key) || aliasKey || seenKeysInBlock.has(key) || seenKeysInBlock.has(normalizedTerm)) return;
       const start = sourceText.indexOf(term);
       if (start === -1) return;
       matches.push({
@@ -33,6 +41,7 @@ const StreamRenderer = (() => {
         category: (annotation?.category || 'other').trim() || 'other'
       });
       seenKeysInBlock.add(key);
+      seenKeysInBlock.add(normalizedTerm);
     });
 
     matches.sort((a, b) => a.start - b.start || b.term.length - a.term.length);
@@ -58,7 +67,10 @@ const StreamRenderer = (() => {
       segments.push({ type: 'text', text: sourceText.slice(cursor) });
     }
 
-    return { segments, introducedKeys: accepted.map(item => item.key) };
+    return {
+      segments,
+      introducedKeys: accepted.map(item => ({ key: item.key, term: item.term }))
+    };
   }
 
   function createAnnotationNode(annotation) {
@@ -76,10 +88,10 @@ const StreamRenderer = (() => {
     return typewriteAnnotated(el, text, [], [], speed);
   }
 
-  function typewriteAnnotated(el, text, annotations = [], introducedTerms = [], speed = 30) {
+  function typewriteAnnotated(el, text, annotations = [], introducedTerms = [], introducedAliases = {}, speed = 30) {
     return new Promise(resolve => {
       el.textContent = '';
-      const { segments, introducedKeys } = buildSegments(text, annotations, introducedTerms);
+      const { segments, introducedKeys } = buildSegments(text, annotations, introducedTerms, introducedAliases);
       let segmentIndex = 0;
       let charIndex = 0;
       let currentNode = null;
@@ -120,9 +132,9 @@ const StreamRenderer = (() => {
     });
   }
 
-  function renderAnnotatedText(el, text, annotations = [], introducedTerms = []) {
+  function renderAnnotatedText(el, text, annotations = [], introducedTerms = [], introducedAliases = {}) {
     el.textContent = '';
-    const { segments, introducedKeys } = buildSegments(text, annotations, introducedTerms);
+    const { segments, introducedKeys } = buildSegments(text, annotations, introducedTerms, introducedAliases);
     segments.forEach(segment => {
       if (segment.type === 'annotation') {
         const node = createAnnotationNode(segment.annotation);
@@ -147,7 +159,7 @@ const StreamRenderer = (() => {
   }
 
   // 渲染场景数据到页面
-  async function renderScene(sceneData, containers, introducedTerms = []) {
+  async function renderScene(sceneData, containers, introducedTerms = [], introducedAliases = {}) {
     const { sceneEl, npcEl, questionEl, optionsEl, noteEl } = containers;
     const newlyIntroduced = [];
 
@@ -159,7 +171,7 @@ const StreamRenderer = (() => {
 
     // 打字机输出场景描述
     sceneEl.textContent = '';
-    const sceneKeys = await typewriteAnnotated(sceneEl, sceneData.scene, sceneData.scene_annotations, introducedTerms.concat(newlyIntroduced), 28);
+    const sceneKeys = await typewriteAnnotated(sceneEl, sceneData.scene, sceneData.scene_annotations, introducedTerms.concat(newlyIntroduced.map(item => item.key)), introducedAliases, 28);
     newlyIntroduced.push(...sceneKeys);
 
     // NPC 对话
@@ -169,14 +181,14 @@ const StreamRenderer = (() => {
       const textEl = npcEl.querySelector('.npc-text');
       if (nameEl) nameEl.textContent = sceneData.npc_name || '';
       if (textEl) {
-        const npcKeys = await typewriteAnnotated(textEl, `"${sceneData.npc_dialogue}"`, sceneData.npc_annotations, introducedTerms.concat(newlyIntroduced), 32);
+        const npcKeys = await typewriteAnnotated(textEl, `"${sceneData.npc_dialogue}"`, sceneData.npc_annotations, introducedTerms.concat(newlyIntroduced.map(item => item.key)), introducedAliases, 32);
         newlyIntroduced.push(...npcKeys);
       }
     }
 
     // 问题
     if (questionEl) {
-      const questionKeys = await typewriteAnnotated(questionEl, sceneData.question, sceneData.question_annotations, introducedTerms.concat(newlyIntroduced), 35);
+      const questionKeys = await typewriteAnnotated(questionEl, sceneData.question, sceneData.question_annotations, introducedTerms.concat(newlyIntroduced.map(item => item.key)), introducedAliases, 35);
       newlyIntroduced.push(...questionKeys);
     }
 
@@ -235,11 +247,11 @@ const StreamRenderer = (() => {
     };
   }
 
-  async function renderAnnotatedConsequence(el, text, annotations = [], introducedTerms = []) {
+  async function renderAnnotatedConsequence(el, text, annotations = [], introducedTerms = [], introducedAliases = {}) {
     el.innerHTML = '<div class="consequence-title">局势余波</div><div class="consequence-body"></div>';
     el.classList.add('visible');
     const bodyEl = el.querySelector('.consequence-body');
-    const introducedKeys = await typewriteAnnotated(bodyEl, text, annotations, introducedTerms, 26);
+    const introducedKeys = await typewriteAnnotated(bodyEl, text, annotations, introducedTerms, introducedAliases, 26);
     return introducedKeys;
   }
 
