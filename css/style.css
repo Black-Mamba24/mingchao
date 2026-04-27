@@ -305,7 +305,8 @@ body::before {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 24px;
+  gap: 16px;
+  padding: 12px 24px;
   background: linear-gradient(to right, var(--red), #6B0F0F);
   color: white;
 }
@@ -313,19 +314,126 @@ body::before {
   font-size: 1.1rem;
   font-weight: 700;
   letter-spacing: 0.15em;
+  flex: 0 0 auto;
 }
 .game-topbar .gt-meta {
   font-size: 0.78rem;
   opacity: 0.8;
   letter-spacing: 0.1em;
+  flex: 0 0 auto;
 }
-.act-badge {
-  background: rgba(255,255,255,0.18);
-  padding: 4px 12px;
-  border-radius: 20px;
+
+.story-progress {
+  padding: 12px 24px 10px;
+  background: linear-gradient(to bottom, #f8f0df, var(--cream));
+  border-bottom: 1px solid rgba(139, 105, 20, 0.18);
+}
+
+.story-progress-inline {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+  border-bottom: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.story-progress-track {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.story-progress-inline .story-progress-track {
+  align-items: center;
+}
+
+.story-act {
+  position: relative;
+  flex: 0 0 auto;
+  min-width: 0;
+  padding: 0 14px 0 10px;
+  border-radius: 0;
+  background: transparent;
+  border: none;
+  transition: color 0.25s ease, opacity 0.25s ease;
+}
+
+.story-act-label {
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  color: rgba(255, 244, 227, 0.72);
+  margin-bottom: 2px;
+}
+
+.story-act-title {
+  font-size: 0.74rem;
+  color: rgba(255, 244, 227, 0.88);
+  white-space: nowrap;
+}
+
+.story-scene-row {
+  display: flex;
+  gap: 4px;
+  margin-top: 5px;
+}
+
+.story-act-arrow {
+  position: absolute;
+  top: 50%;
+  right: -9px;
+  transform: translateY(-50%);
   font-size: 0.78rem;
-  letter-spacing: 0.12em;
+  color: rgba(255, 244, 227, 0.46);
+  z-index: 2;
+  pointer-events: none;
 }
+
+.story-scene-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 244, 227, 0.42);
+  background: transparent;
+  opacity: 0.65;
+}
+
+.story-act.is-completed {
+  opacity: 0.52;
+}
+
+.story-act.is-current {
+  opacity: 1;
+}
+
+.story-act.is-current .story-act-label,
+.story-act.is-current .story-act-title {
+  color: #fff9ee;
+}
+
+.story-scene-dot.is-completed {
+  background: rgba(255, 244, 227, 0.58);
+  border-color: rgba(255, 244, 227, 0.58);
+}
+
+.story-scene-dot.is-current {
+  width: 8px;
+  height: 8px;
+  margin-top: -1px;
+  background: var(--gold-light);
+  border: 1px solid rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 0 1px rgba(255, 244, 227, 0.2);
+  opacity: 1;
+}
+
+.story-scene-dot.is-upcoming {
+  background: rgba(255, 255, 255, 0.12);
+}
+
 
 /* 状态栏 */
 .status-bar {
@@ -1082,8 +1190,20 @@ body::before {
 
 /* ── 响应式 ───────────────────────────────── */
 @media (max-width: 600px) {
-  .game-topbar { padding: 10px 14px; }
+  .game-topbar { padding: 10px 14px; gap: 10px; }
   .game-topbar .gt-meta { display: none; }
+  .story-progress { padding: 10px 14px 8px; overflow-x: auto; }
+  .story-progress-inline {
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+  .story-progress-track { gap: 0; width: max-content; min-width: 100%; }
+  .story-act { padding: 0 10px 0 7px; }
+  .story-act-arrow { right: -8px; font-size: 0.7rem; }
+  .story-act-label { font-size: 0.56rem; }
+  .story-act-title { font-size: 0.68rem; }
+  .story-scene-row { gap: 4px; }
+  .story-progress-summary { display: none; }
   .status-bar { gap: 12px; padding: 8px 14px; }
   .status-track { width: 56px; }
   .game-content { padding: 20px 14px 16px; }

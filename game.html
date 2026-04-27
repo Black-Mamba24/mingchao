@@ -13,7 +13,9 @@
   <!-- 顶部栏 -->
   <div class="game-topbar">
     <span class="gt-title">穿越明朝</span>
-    <span id="act-badge" class="act-badge">第一幕 · 立志与临危</span>
+    <div class="story-progress story-progress-inline" aria-label="剧情进度">
+      <div class="story-progress-track" id="story-progress-track"></div>
+    </div>
     <span class="gt-meta" id="role-label">—</span>
   </div>
 
@@ -163,7 +165,7 @@
       const role = eventData.roles.find(r => r.id === state.roleId);
       document.getElementById('role-label').textContent =
         role ? role.name + ' · ' + role.subtitle : '';
-      updateActBadge(state.act);
+      updateStoryProgress();
 
       loadScene();
     }
@@ -179,12 +181,43 @@
       document.getElementById('bar-insight').style.width    = (s.insight * 10) + '%';
     }
 
-    function updateActBadge(act) {
+    function updateStoryProgress() {
       const nums = ['一','二','三','四'];
       const acts = getActs();
-      const actName = acts[act - 1] ? acts[act - 1].title : '';
-      document.getElementById('act-badge').textContent =
-        `第${nums[act-1]}幕 · ${actName}`;
+      const progress = StateManager.getProgressMeta();
+      const track = document.getElementById('story-progress-track');
+      if (!track) return;
+
+      const actItems = Array.from({ length: progress.totalActs }, (_, actIndex) => {
+        const actNumber = actIndex + 1;
+        const actTitle = acts[actIndex]?.title || '剧情推进';
+        let actState = 'upcoming';
+        if (actNumber < progress.currentAct || progress.finished) actState = 'completed';
+        if (actNumber === progress.currentAct && !progress.finished) actState = 'current';
+
+        const sceneDots = Array.from({ length: progress.scenesPerAct }, (_, sceneIndex) => {
+          const sceneNumber = sceneIndex + 1;
+          let sceneState = 'upcoming';
+          if (actNumber < progress.currentAct || progress.finished) {
+            sceneState = 'completed';
+          } else if (actNumber === progress.currentAct) {
+            if (sceneNumber < progress.currentScene || progress.finished) sceneState = 'completed';
+            if (sceneNumber === progress.currentScene && !progress.finished) sceneState = 'current';
+          }
+          return `<span class="story-scene-dot is-${sceneState}" aria-hidden="true"></span>`;
+        }).join('');
+
+        return `
+          <div class="story-act is-${actState}" aria-current="${actState === 'current' ? 'step' : 'false'}">
+            <div class="story-act-label">第${nums[actIndex]}幕</div>
+            <div class="story-act-title">${actTitle}</div>
+            <div class="story-scene-row">${sceneDots}</div>
+            ${actIndex < progress.totalActs - 1 ? '<span class="story-act-arrow" aria-hidden="true">→</span>' : ''}
+          </div>
+        `;
+      }).join('');
+
+      track.innerHTML = actItems;
     }
 
     // ── 清空当前场景区（完整重置，无残留） ──────────────────
@@ -412,7 +445,7 @@
       if (state.finished) { window.location.href = 'ending.html'; return; }
 
       updateStatusBar();
-      updateActBadge(state.act);
+      updateStoryProgress();
 
       clearScene();
       const sceneKey = buildSceneKey(state);

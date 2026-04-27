@@ -133,6 +133,22 @@ const StateManager = (() => {
     save();
   }
 
+  function getProgressMeta() {
+    const totalActs = 4;
+    const scenesPerAct = 3;
+    const totalScenes = totalActs * scenesPerAct;
+    const currentSceneNumber = Math.min(totalScenes, (state.act - 1) * scenesPerAct + state.scene + 1);
+    return {
+      totalActs,
+      scenesPerAct,
+      totalScenes,
+      currentAct: state.act,
+      currentScene: state.scene + 1,
+      currentSceneNumber,
+      finished: !!state.finished
+    };
+  }
+
   function nextScene(actData) {
     state.scene += 1;
     // 每幕3个scene后进入下一幕
@@ -145,5 +161,5 @@ const StateManager = (() => {
     save();
   }
 
-  return { load, save, reset, get, set, applyDeltas, pushHistory, recordChoice, setLastSceneContext, setLastScoreChange, getIntroducedTerms, getIntroducedTermAliases, hasIntroducedTerm, markIntroducedTerms, nextScene };
+  return { load, save, reset, get, set, applyDeltas, pushHistory, recordChoice, setLastSceneContext, setLastScoreChange, getIntroducedTerms, getIntroducedTermAliases, hasIntroducedTerm, markIntroducedTerms, getProgressMeta, nextScene };
 })();
