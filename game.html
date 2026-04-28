@@ -126,6 +126,7 @@
   <script src="js/llm-client.js"></script>
   <script src="js/prompt-builder.js"></script>
   <script src="js/stream-renderer.js"></script>
+  <script src="js/selection-lookup.js"></script>
   <script>
     let eventData = null;
     let currentRoleId = null;
@@ -166,6 +167,10 @@
       document.getElementById('role-label').textContent =
         role ? role.name + ' · ' + role.subtitle : '';
       updateStoryProgress();
+
+      if (typeof SelectionLookup !== 'undefined') {
+        SelectionLookup.init({ container: document.getElementById('scene-wrap') });
+      }
 
       loadScene();
     }
@@ -485,6 +490,9 @@
         await renderSceneData(sceneData);
       } catch (e) {
         setLoading(false);
+        console.error('Scene generation failed', e);
+        if (e?.rawContent) console.error('Scene raw model output:', e.rawContent);
+        if (e?.repairedContent) console.error('Scene repaired model output:', e.repairedContent);
         showError('DeepSeek-V4 生成失败：' + e.message);
       }
     }
@@ -555,15 +563,20 @@
               consequenceData.consequence || '（历史的齿轮继续转动……）',
               consequenceData.consequence_annotations,
               StateManager.getIntroducedTerms(),
-              StateManager.getIntroducedTermAliases()
+              StateManager.getIntroducedTermAliases(),
+              consequenceData.consequence_annotation_candidates
             );
             StateManager.markIntroducedTerms(introducedKeys);
             consequenceText = consequenceData.consequence || '（历史的齿轮继续转动……）';
             StateManager.pushHistory('assistant', consequenceText);
           } catch (e) {
+            console.error('Consequence generation failed', e);
+            if (e?.rawContent) console.error('Consequence raw model output:', e.rawContent);
+            if (e?.repairedContent) console.error('Consequence repaired model output:', e.repairedContent);
             box.innerHTML = '<div class="consequence-title">局势余波</div><div class="consequence-body">（历史的齿轮继续转动……）</div>';
             box.classList.add('visible');
             consequenceText = '（历史的齿轮继续转动……）';
+            showError('DeepSeek-V4 推演后果失败：' + e.message);
           }
 
           setLoading(false);

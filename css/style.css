@@ -731,6 +731,56 @@ body::before {
   line-height: 1.75;
 }
 
+/* 文本选中放大镜查询 */
+.selection-lookup-icon {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--paper);
+  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0) 60%);
+  color: var(--red);
+  border: 1px solid var(--gold-light);
+  border-radius: 50%;
+  box-shadow: 0 4px 12px var(--shadow);
+  cursor: pointer;
+  z-index: 200;
+  opacity: 1;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+.selection-lookup-icon.visible { display: inline-flex; }
+.selection-lookup-icon:hover,
+.selection-lookup-icon:focus-visible {
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(0deg, rgba(201, 162, 39, 0.18), rgba(201, 162, 39, 0.18));
+  border-color: var(--gold);
+  transform: scale(1.08);
+  box-shadow: 0 6px 16px var(--shadow);
+  outline: none;
+}
+.selection-lookup-icon:active {
+  transform: scale(1);
+  box-shadow: 0 2px 8px var(--shadow);
+}
+.selection-lookup-icon:disabled {
+  cursor: wait;
+  opacity: 0.85;
+}
+.selection-lookup-icon.loading svg {
+  animation: selection-lookup-spin 0.9s linear infinite;
+}
+@keyframes selection-lookup-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* 历史注释 */
 .note-toggle-btn {
   display: none;
