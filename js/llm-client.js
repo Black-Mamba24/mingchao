@@ -342,9 +342,19 @@ const LLMClient = (() => {
     persistLookupCache();
   }
 
+  function isLookupGenericTerm(term) {
+    const clean = (term || '').trim();
+    if (!clean) return true;
+    if (clean.length <= 1) return true;
+    return /^(百姓|军民|军队|士兵|将士|局势|事情|消息|时候|城中|城外|家人|众人|大家|我们|你们|他们|自己|前方|后方|东西)$/.test(clean);
+  }
+
   async function lookupTerm(term, context = '') {
     const cleanTerm = (term || '').trim();
     if (!cleanTerm) throw new Error('查询词为空');
+    if (isLookupGenericTerm(cleanTerm)) {
+      return { term: cleanTerm, category: 'other', intro: '该词并非专有历史名词。', fromCache: false };
+    }
 
     const cacheKey = normalizeLookupKey(cleanTerm);
     if (cacheKey) {

@@ -136,17 +136,59 @@
     }
 
     // 无 API Key 时的静态兜底结局
-    function showFallbackEnding(state, eventData) {
-      const endings = eventData.ending_conditions;
-      let endingKey = 'fallen';
-      if (state.reputation >= (endings.hero?.reputation_min || 8)) endingKey = 'hero';
-      else if (state.reputation >= (endings.survivor?.reputation_min || 4)) endingKey = 'survivor';
+    function pickFallbackEnding(endings = {}, state) {
+      const entries = Object.entries(endings);
+      if (!entries.length) return { key: '', ending: null };
 
-      const ending = endings[endingKey];
-      document.getElementById('ending-h1').textContent = endingKey === 'hero' ? '威名赫赫' : endingKey === 'survivor' ? '劫后余生' : '随波逐流';
+      const score = ([, ending]) => {
+        if (ending.reputation_min != null && state.reputation < ending.reputation_min) return -Infinity;
+        if (ending.reputation_max != null && state.reputation > ending.reputation_max) return -Infinity;
+        if (ending.risk_min != null && state.risk < ending.risk_min) return -Infinity;
+        if (ending.risk_max != null && state.risk > ending.risk_max) return -Infinity;
+        if (ending.insight_min != null && state.insight < ending.insight_min) return -Infinity;
+        if (ending.insight_max != null && state.insight > ending.insight_max) return -Infinity;
+
+        return (ending.reputation_min ?? 0) + (ending.insight_min ?? 0) + (ending.risk_min ?? 0)
+          - (ending.reputation_max != null ? 1 : 0)
+          - (ending.risk_max != null ? 1 : 0)
+          - (ending.insight_max != null ? 1 : 0);
+      };
+
+      const sorted = entries
+        .map(entry => ({ entry, weight: score(entry) }))
+        .filter(item => item.weight !== -Infinity)
+        .sort((a, b) => b.weight - a.weight);
+
+      if (sorted.length) {
+        const [key, ending] = sorted[0].entry;
+        return { key, ending };
+      }
+
+      const [key, ending] = entries[0];
+      return { key, ending };
+    }
+
+    function fallbackEndingTitle(key) {
+      const map = {
+        hero: '威名赫赫',
+        survivor: '劫后余生',
+        fallen: '随波逐流',
+        legend: '龙争定鼎',
+        tragedy: '血火成名',
+        commoner: '残局余生',
+        martyr: '殉城留名',
+        tragic: '血火见证',
+        forgotten: '沉没人海'
+      };
+      return map[key] || '历史余音';
+    }
+
+    function showFallbackEnding(state, eventData) {
+      const { key, ending } = pickFallbackEnding(eventData.ending_conditions, state);
+      document.getElementById('ending-h1').textContent = fallbackEndingTitle(key);
       document.getElementById('personal-ending').textContent = ending?.description || '你见证了这段历史。';
       document.getElementById('historical-truth').textContent =
-        '嘉靖四十年（1561年），戚继光率戚家军台州九战九捷，斩首两千余级，东南倭患为之一清。此后戚继光入闽，与俞大猷联合，至隆庆元年（1567年），福建倭患悉平。戚家军以"召之即来、来之能战、战之能胜"著称于世，戚继光亦成为明代军事史上最杰出的将领之一。';
+        eventData.fallback_historical_truth || eventData.description || '这段历史的真实结局仍值得被记住。';
     }
 
     const donateQRCodes = {

@@ -44,9 +44,10 @@ const PromptBuilder = (() => {
     return `【名词解释输出要求】
 - 为 scene、npc_dialogue、question、consequence 生成结构化 annotations
 - 可解释对象限定为以下类别之一：历史人物、古地名、古称、年号、职位、机构、事件、军械、直接影响当前抉择理解的生僻历史词
-- 每个文本块返回 6 到 8 个 annotation candidates，前端最终展示上限为 5 个
-- 候选召回优先级：关键人物 > 古称/古地名 > 具体旧称 > 生僻历史词 > 其他；常识词与泛称必须排在最末
-- 同句若同时出现泛称与更具体词，更具体词的 decision_relevance 必须比泛称高 0.2 以上
+- 严禁为现代常用词、普通动词、形容词、代词、日常短语、情绪词、泛称生成解释；例如“百姓”“军队”“局势”“东西”“起来”“离开”“家人”这类词一律不得进入 candidates
+- 每个文本块返回 6 到 8 个 annotation candidates，前端最终展示上限为 5 个；如果合格候选不足，宁可少给，不得用普通词凑数
+- 候选召回优先级：关键人物 > 古称/古地名 > 具体旧称 > 生僻历史词 > 其他
+- 同句若同时出现泛称与更具体词，更具体词的 decision_relevance 必须比泛称高 0.2 以上；泛称默认不应入选
 - term 必须与原文字面完全一致；key 必须跨场景稳定
 - intro 用中文，字数按 category 分档：person 类 180 到 260 字；place/era/office/institution 类 120 到 180 字；weapon/event/other 类 100 到 160 字
 - 同一文本块同一词只返回一次；冗余候选数量上限为 2 个

@@ -85,6 +85,8 @@
         <!-- 分数变化说明 -->
         <div class="score-change-box" id="score-change-box"></div>
 
+        <div class="post-choice-loading-anchor" id="post-choice-loading-anchor"></div>
+
         <!-- 后果描述 -->
         <div class="consequence-box" id="consequence-box"></div>
 
@@ -303,8 +305,26 @@
 
     // ── loading 显示/隐藏 ────────────────────────────────────
     function setLoading(visible, text) {
-      document.getElementById('loading-box').classList.toggle('visible', visible);
+      const loadingBox = document.getElementById('loading-box');
+      if (loadingBox.parentElement !== document.querySelector('.game-content')) {
+        document.querySelector('.game-content').insertBefore(loadingBox, document.getElementById('error-box'));
+      }
+      loadingBox.classList.toggle('visible', visible);
       if (visible && text) document.getElementById('loading-text').textContent = text;
+    }
+
+    function setPostChoiceLoading(visible, text) {
+      const loadingBox = document.getElementById('loading-box');
+      const loadingText = document.getElementById('loading-text');
+      const postChoiceStack = document.getElementById('post-choice-stack');
+      const anchor = document.getElementById('post-choice-loading-anchor');
+
+      if (loadingBox.parentElement !== postChoiceStack) {
+        postChoiceStack.insertBefore(loadingBox, anchor);
+      }
+
+      loadingBox.classList.toggle('visible', visible);
+      if (visible && text) loadingText.textContent = text;
     }
 
     // ── 错误显示/隐藏 ────────────────────────────────────────
@@ -548,11 +568,10 @@
           const box = document.getElementById('consequence-box');
           box.innerHTML = '<div class="consequence-title">局势余波</div><div class="consequence-body"></div>';
           box.classList.add('visible');
-          setLoading(true, 'DeepSeek-V4 正在推演后果……');
 
           let consequenceText = '';
           const currentTipPromise = pendingTipPromise || prefetchTip(state);
-          setLoading(true, 'DeepSeek-V4 正在推演后果……');
+          setPostChoiceLoading(true, 'DeepSeek-V4 正在展开后续情节……');
           try {
             const msgs = PromptBuilder.buildConsequenceMessages(
               eventData, state.roleId, optText, StateManager.get(), scoreImpact

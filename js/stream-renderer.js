@@ -23,10 +23,11 @@ const StreamRenderer = (() => {
   };
 
   const GENERIC_TERMS = new Set([
-    '皇帝', '朝廷', '官兵', '将军', '大臣', '宫中', '天下', '京城', '军队', '兵马', '百姓', '叛军', '敌军', '官府', '圣旨', '懿旨', '监国', '即位'
+    '皇帝', '朝廷', '官兵', '将军', '大臣', '宫中', '天下', '京城', '军队', '兵马', '百姓', '叛军', '敌军', '官府', '圣旨', '懿旨', '监国', '即位',
+    '军民', '士兵', '将士', '局势', '城中', '家人', '百官', '众人', '大军', '兵卒', '敌兵', '朝中', '此事', '时候', '消息', '命运', '结果', '事情'
   ]);
 
-  const GENERIC_SUFFIXES = ['之战', '局势', '朝廷', '官府', '兵马', '军士'];
+  const GENERIC_SUFFIXES = ['之战', '局势', '朝廷', '官府', '兵马', '军士', '百姓', '军民', '将士', '大军'];
 
   function clampScore(value) {
     const num = Number(value);
@@ -52,11 +53,20 @@ const StreamRenderer = (() => {
     }, 0);
   }
 
+  function hasHistoricalShape(term) {
+    return /帝|王|侯|监|令|使|卿|相|史|尉|守|丞|府|州|县|营|卫|镇|军|门|关|坊|湖|江|河|山|寺|宫|殿|阁|台|观|司|院|部|寺|衙|年|元|之役|之乱|之变|之围|之战/.test(term);
+  }
+
   function isLikelyGenericTerm(term) {
-    const normalized = normalizeTermKey(term);
+    const trimmed = (term || '').trim();
+    const normalized = normalizeTermKey(trimmed);
     if (!normalized) return true;
-    if (GENERIC_TERMS.has(term.trim())) return true;
-    return GENERIC_SUFFIXES.some(suffix => term.endsWith(suffix) && term.length <= suffix.length + 2);
+    if (GENERIC_TERMS.has(trimmed)) return true;
+    if (trimmed.length <= 1) return true;
+    if (trimmed.length <= 2 && !hasHistoricalShape(trimmed)) return true;
+    if (/^[的了着把将向于因在从与及和或而但并若仍就都又很更最太也还便$]/.test(trimmed)) return true;
+    if (/^(东西|事情|消息|局面|局势|时候|有人|众人|大家|自己|我们|你们|他们|前方|后方|城中|城外|家人|妇人|男人|孩子)$/.test(trimmed)) return true;
+    return GENERIC_SUFFIXES.some(suffix => trimmed.endsWith(suffix) && trimmed.length <= suffix.length + 2);
   }
 
   function isValidAnnotation(annotation, text) {
@@ -120,7 +130,7 @@ const StreamRenderer = (() => {
         };
       })
       .filter(item => item.start !== -1)
-      .filter(item => !item.isGeneric || item.totalScore >= 0.55)
+      .filter(item => !item.isGeneric || (item.totalScore >= 0.72 && hasHistoricalShape(item.term)))
       .map(item => ({
         ...item,
         totalScore: item.totalScore - (item.wasIntroduced ? 0.35 : 0)
