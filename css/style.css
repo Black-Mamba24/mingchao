@@ -210,6 +210,10 @@ body::before {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 18px;
 }
+.role-grid[data-role-count="1"] {
+  grid-template-columns: minmax(0, 720px);
+  justify-content: center;
+}
 .role-grid[data-role-count="2"] {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -226,9 +230,13 @@ body::before {
   .role-grid[data-role-count="4"] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .role-grid[data-role-count="1"] {
+    grid-template-columns: minmax(0, 720px);
+  }
 }
 @media (max-width: 640px) {
   .role-grid,
+  .role-grid[data-role-count="1"],
   .role-grid[data-role-count="2"],
   .role-grid[data-role-count="3"],
   .role-grid[data-role-count="4"] {

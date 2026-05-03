@@ -353,7 +353,7 @@ const LLMClient = (() => {
     const cleanTerm = (term || '').trim();
     if (!cleanTerm) throw new Error('查询词为空');
     if (isLookupGenericTerm(cleanTerm)) {
-      return { term: cleanTerm, category: 'other', intro: '该词并非专有历史名词。', fromCache: false };
+      return { term: cleanTerm, category: 'other', intro: '', fromCache: false };
     }
 
     const cacheKey = normalizeLookupKey(cleanTerm);
@@ -375,13 +375,13 @@ const LLMClient = (() => {
 1. 必须返回如下结构的严格 JSON：
 {
   "term": "${cleanTerm}",
-  "category": "person/place/weapon/era/office/institution/event/other",
+  "category": "person/place/work/herb/weapon/era/office/institution/event/other",
   "intro": "中文介绍"
 }
-2. category 必须从以上 8 个枚举值中选择一个：人物=person，地名=place，兵器/器物=weapon，年号=era，官职=office，机构=institution，事件=event，其他=other
-3. intro 字数按 category 分档：person 类 180 到 260 字；place/era/office/institution 类 120 到 180 字；weapon/event/other 类 100 到 160 字
+2. category 必须从以上 10 个枚举值中选择一个：人物=person，地名=place，著作名称=work，药材=herb，兵器/器物=weapon，年号=era，官职=office，机构=institution，事件=event，其他=other
+3. intro 字数按 category 分档：person 类 180 到 260 字；place/era/office/institution 类 120 到 180 字；work/herb/weapon/event/other 类 100 到 160 字
 4. intro 必须使用第三人称客观语气，禁止使用现代词汇
-5. 如果该选中文本并非一个可解释的专有名词（如只是一个普通短语、形容词、代词），intro 必须以"该词并非专有历史名词"开头，并简要说明其字面含义，字数上限 80 字，此时 category 必须为 other`;
+5. 如果该选中文本并非一个可解释的专有名词（如只是一个普通短语、形容词、代词），category 必须为 other，intro 必须返回空字符串`;
 
     const messages = [
       { role: 'system', content: systemPrompt },

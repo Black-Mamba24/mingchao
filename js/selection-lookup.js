@@ -21,6 +21,8 @@ const SelectionLookup = (() => {
   const CATEGORY_LABELS = {
     person: '人物',
     place: '地名',
+    work: '著作',
+    herb: '药材',
     weapon: '武器',
     era: '年号',
     office: '职位',
@@ -264,7 +266,7 @@ const SelectionLookup = (() => {
     if (!popoverEl) return;
     titleEl.textContent = result.term || '';
     categoryEl.textContent = CATEGORY_LABELS[result.category] || CATEGORY_LABELS.other;
-    bodyEl.textContent = result.intro || '（未返回介绍内容）';
+    bodyEl.textContent = result.intro || '';
     presentPopover(rect);
   }
 
