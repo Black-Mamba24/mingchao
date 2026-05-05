@@ -19,6 +19,8 @@ const StateManager = (() => {
     lastScoreChange: null,
     introducedTerms: [],
     introducedTermAliases: {},
+    shownTips: [],
+    usedTipClusters: [],
     finished: false
   });
 
@@ -106,6 +108,40 @@ const StateManager = (() => {
     return introduced.includes(normalizedKey) || (normalizedTerm && aliases[normalizedTerm]);
   }
 
+  function getEquivalentIntroducedTerms(value) {
+    const normalized = normalizeIntroducedTerm(value);
+    if (!normalized) return [];
+
+    const suffixes = ['城', '府', '县', '州', '郡', '镇', '乡', '里', '寨', '堡', '关', '口', '港', '岛', '山', '江', '河', '湖'];
+    const prefixes = ['于', '在', '至', '抵', '赴', '入', '出'];
+    const results = new Set([normalized]);
+    const queue = [normalized];
+
+    while (queue.length) {
+      const current = queue.pop();
+      suffixes.forEach(suffix => {
+        if (current.endsWith(suffix) && current.length > suffix.length + 1) {
+          const trimmed = current.slice(0, -suffix.length);
+          if (trimmed && !results.has(trimmed)) {
+            results.add(trimmed);
+            queue.push(trimmed);
+          }
+        }
+      });
+      prefixes.forEach(prefix => {
+        if (current.startsWith(prefix) && current.length > prefix.length + 1) {
+          const trimmed = current.slice(prefix.length);
+          if (trimmed && !results.has(trimmed)) {
+            results.add(trimmed);
+            queue.push(trimmed);
+          }
+        }
+      });
+    }
+
+    return Array.from(results);
+  }
+
   function markIntroducedTerms(entries = []) {
     const mergedTerms = new Set(getIntroducedTerms());
     const aliases = getIntroducedTermAliases();
@@ -117,20 +153,56 @@ const StateManager = (() => {
       const normalizedKey = normalizeIntroducedTerm(rawKey || rawTerm);
       const normalizedTerm = normalizeIntroducedTerm(rawTerm || rawKey);
       if (!normalizedKey) return;
-      if (!mergedTerms.has(normalizedKey)) {
-        mergedTerms.add(normalizedKey);
-        changed = true;
-      }
-      if (normalizedTerm && aliases[normalizedTerm] !== normalizedKey) {
-        aliases[normalizedTerm] = normalizedKey;
-        changed = true;
-      }
+      getEquivalentIntroducedTerms(normalizedKey).forEach(equivalent => {
+        if (!mergedTerms.has(equivalent)) {
+          mergedTerms.add(equivalent);
+          changed = true;
+        }
+      });
+      getEquivalentIntroducedTerms(normalizedTerm).forEach(equivalent => {
+        if (equivalent && aliases[equivalent] !== normalizedKey) {
+          aliases[equivalent] = normalizedKey;
+          changed = true;
+        }
+      });
     });
 
     if (!changed) return;
     state.introducedTerms = Array.from(mergedTerms);
     state.introducedTermAliases = aliases;
     save();
+  }
+
+  function getShownTips() {
+    return Array.isArray(state.shownTips) ? [...state.shownTips] : [];
+  }
+
+  function getUsedTipClusters() {
+    return Array.isArray(state.usedTipClusters) ? [...state.usedTipClusters] : [];
+  }
+
+  function markTipShown(text, cluster = '') {
+    const tip = (text || '').trim();
+    const normalizedCluster = normalizeIntroducedTerm(cluster);
+    let changed = false;
+
+    if (tip) {
+      const existing = getShownTips();
+      if (!existing.includes(tip)) {
+        state.shownTips = [...existing, tip].slice(-20);
+        changed = true;
+      }
+    }
+
+    if (normalizedCluster) {
+      const usedClusters = getUsedTipClusters();
+      if (!usedClusters.includes(normalizedCluster)) {
+        state.usedTipClusters = [...usedClusters, normalizedCluster].slice(-20);
+        changed = true;
+      }
+    }
+
+    if (changed) save();
   }
 
   function getProgressMeta() {
@@ -161,5 +233,5 @@ const StateManager = (() => {
     save();
   }
 
-  return { load, save, reset, get, set, applyDeltas, pushHistory, recordChoice, setLastSceneContext, setLastScoreChange, getIntroducedTerms, getIntroducedTermAliases, hasIntroducedTerm, markIntroducedTerms, getProgressMeta, nextScene };
+  return { load, save, reset, get, set, applyDeltas, pushHistory, recordChoice, setLastSceneContext, setLastScoreChange, getIntroducedTerms, getIntroducedTermAliases, hasIntroducedTerm, markIntroducedTerms, getShownTips, getUsedTipClusters, markTipShown, getProgressMeta, nextScene };
 })();

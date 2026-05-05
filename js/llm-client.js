@@ -346,17 +346,20 @@ const LLMClient = (() => {
     const clean = (term || '').trim();
     if (!clean) return true;
     if (clean.length <= 1) return true;
-    return /^(百姓|军民|军队|士兵|将士|局势|事情|消息|时候|城中|城外|家人|众人|大家|我们|你们|他们|自己|前方|后方|东西)$/.test(clean);
+    if (/^(百姓|军民|军队|士兵|将士|局势|事情|消息|时候|城中|城外|家人|众人|大家|我们|你们|他们|自己|前方|后方|东西)$/.test(clean)) return true;
+    if (/^(清军|清兵|官军|敌军|叛军|援军|守军|追兵|水师|舟师|衙役|差役|书吏|官吏|军士|兵卒|军心|民心|求援信|军令|战报|粮草|粮库|军营|营帐|兵船|战船|探马|伏兵)(.{0,4})?$/.test(clean)) return true;
+    return /^.{0,4}(官吏|营帐|军营|求援信|军心|粮库|战报|军令|粮草|援军|守军|水师|追兵|兵船|战船)$/.test(clean);
   }
 
   async function lookupTerm(term, context = '') {
     const cleanTerm = (term || '').trim();
+    const cleanContext = (context || '').trim();
     if (!cleanTerm) throw new Error('查询词为空');
     if (isLookupGenericTerm(cleanTerm)) {
       return { term: cleanTerm, category: 'other', intro: '', fromCache: false };
     }
 
-    const cacheKey = normalizeLookupKey(cleanTerm);
+    const cacheKey = normalizeLookupKey(`${cleanTerm}@@${cleanContext}`) || normalizeLookupKey(cleanTerm);
     if (cacheKey) {
       const cached = readLookupCache(cacheKey);
       if (cached) return { ...cached, fromCache: true };
@@ -367,8 +370,8 @@ const LLMClient = (() => {
       }
     }
 
-    const systemPrompt = '你是一位严谨的明史与中国古代史专家。用户选中了一段文字，请判断其类别并给出名词解释。必须返回严格 JSON，禁止输出任何 markdown、代码块、前缀说明。所有字符串必须正确闭合，所有属性名必须使用双引号。';
-    const contextLine = context ? `\n该词所处的场景上下文：「${context}」` : '';
+    const systemPrompt = '你是一位严谨的明史与中国古代史专家。用户选中了一段文字，请优先依据当前剧本、当前角色、当前场景语境判断其所指，再给出名词解释。若同一词在别的时代、别的作品、别的人物关系中另有所指，必须优先采用当前语境中最合理的解释；若当前语境不足以支持明确解释，则返回 other 且 intro 为空字符串。必须返回严格 JSON，禁止输出任何 markdown、代码块、前缀说明。所有字符串必须正确闭合，所有属性名必须使用双引号。';
+    const contextLine = cleanContext ? `\n该词所处的场景上下文：「${cleanContext}」` : '';
     const userPrompt = `请为以下选中文本生成名词解释：「${cleanTerm}」${contextLine}
 
 要求：
@@ -381,7 +384,8 @@ const LLMClient = (() => {
 2. category 必须从以上 10 个枚举值中选择一个：人物=person，地名=place，著作名称=work，药材=herb，兵器/器物=weapon，年号=era，官职=office，机构=institution，事件=event，其他=other
 3. intro 字数按 category 分档：person 类 180 到 260 字；place/era/office/institution 类 120 到 180 字；work/herb/weapon/event/other 类 100 到 160 字
 4. intro 必须使用第三人称客观语气，禁止使用现代词汇
-5. 如果该选中文本并非一个可解释的专有名词（如只是一个普通短语、形容词、代词），category 必须为 other，intro 必须返回空字符串`;
+5. 必须严格服从当前场景语境，禁止跳到其他朝代、其他作品、其他历史人物或文学人物的同名词条；例如当前剧本明显围绕李时珍时，“东壁”应优先理解为李时珍的字，而不是其他作品中的人物
+6. 如果该词在当前语境下只是普通短语、泛称，或无法凭当前语境明确指向单一历史专名，category 必须为 other，intro 必须返回空字符串`;
 
     const messages = [
       { role: 'system', content: systemPrompt },

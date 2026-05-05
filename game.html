@@ -254,10 +254,40 @@
     }
 
     // ── 小贴士 ──────────────────────────────────────────────
-    function showTip(text) {
-      if (!text) return;
-      document.getElementById('tips-text').textContent = text;
+    function normalizeTipText(text) {
+      return (text || '').replace(/\s+/g, ' ').trim();
+    }
+
+    function buildFallbackTipCluster(text) {
+      const normalized = normalizeTipText(text)
+        .replace(/[“”"'《》〈〉（）()，。！？；：、]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!normalized) return '';
+      return normalized.slice(0, 24).toLowerCase();
+    }
+
+    function parseTipPayload(rawText) {
+      const source = (rawText || '').trim();
+      const clusterMatch = source.match(/\[FACT_CLUSTER\]([\s\S]*?)\[\/FACT_CLUSTER\]/i);
+      const tipMatch = source.match(/\[TIP\]([\s\S]*?)\[\/TIP\]/i);
+      const text = normalizeTipText(
+        tipMatch
+          ? tipMatch[1]
+          : source.replace(/\[FACT_CLUSTER\][\s\S]*?\[\/FACT_CLUSTER\]/ig, '').replace(/\[TIP\]|\[\/TIP\]/ig, '')
+      );
+      const cluster = normalizeTipText(clusterMatch ? clusterMatch[1] : '') || buildFallbackTipCluster(text);
+      return { cluster, text };
+    }
+
+    function showTip(rawText) {
+      const payload = parseTipPayload(rawText);
+      if (!payload.text) return;
+      if (StateManager.getShownTips().includes(payload.text)) return;
+      if (payload.cluster && StateManager.getUsedTipClusters().includes(payload.cluster)) return;
+      document.getElementById('tips-text').textContent = payload.text;
       document.getElementById('tips-box').classList.add('visible');
+      StateManager.markTipShown(payload.text, payload.cluster);
     }
     function hideTip() {
       document.getElementById('tips-box').classList.remove('visible');

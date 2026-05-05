@@ -7,6 +7,40 @@ const StreamRenderer = (() => {
     return (value || '').trim().replace(/[“”"'《》〈〉（）()，。！？；：、\s]/g, '').toLowerCase();
   }
 
+  function toEquivalentTermKeys(value) {
+    const normalized = normalizeTermKey(value);
+    if (!normalized) return [];
+
+    const suffixes = ['城', '府', '县', '州', '郡', '镇', '乡', '里', '寨', '堡', '关', '口', '港', '岛', '山', '江', '河', '湖'];
+    const prefixes = ['于', '在', '至', '抵', '赴', '入', '出'];
+    const results = new Set([normalized]);
+    const queue = [normalized];
+
+    while (queue.length) {
+      const current = queue.pop();
+      suffixes.forEach(suffix => {
+        if (current.endsWith(suffix) && current.length > suffix.length + 1) {
+          const trimmed = current.slice(0, -suffix.length);
+          if (trimmed && !results.has(trimmed)) {
+            results.add(trimmed);
+            queue.push(trimmed);
+          }
+        }
+      });
+      prefixes.forEach(prefix => {
+        if (current.startsWith(prefix) && current.length > prefix.length + 1) {
+          const trimmed = current.slice(prefix.length);
+          if (trimmed && !results.has(trimmed)) {
+            results.add(trimmed);
+            queue.push(trimmed);
+          }
+        }
+      });
+    }
+
+    return Array.from(results);
+  }
+
   function normalizeAnnotations(annotations) {
     return Array.isArray(annotations) ? annotations : [];
   }
@@ -24,10 +58,12 @@ const StreamRenderer = (() => {
 
   const GENERIC_TERMS = new Set([
     '皇帝', '朝廷', '官兵', '将军', '大臣', '宫中', '天下', '京城', '军队', '兵马', '百姓', '叛军', '敌军', '官府', '圣旨', '懿旨', '监国', '即位',
-    '军民', '士兵', '将士', '局势', '城中', '家人', '百官', '众人', '大军', '兵卒', '敌兵', '朝中', '此事', '时候', '消息', '命运', '结果', '事情'
+    '军民', '士兵', '将士', '局势', '城中', '家人', '百官', '众人', '大军', '兵卒', '敌兵', '朝中', '此事', '时候', '消息', '命运', '结果', '事情',
+    '清军', '衙役', '军心', '求援信', '粮库官吏', '清兵', '援军', '官吏', '营帐', '军营', '粮库', '粮草', '战报', '军令', '守军', '水师', '官军', '追兵',
+    '前军', '后军', '中军', '舟师', '民夫', '差役', '书吏', '兵船', '战船', '探马', '伏兵'
   ]);
 
-  const GENERIC_SUFFIXES = ['之战', '局势', '朝廷', '官府', '兵马', '军士', '百姓', '军民', '将士', '大军'];
+  const GENERIC_SUFFIXES = ['之战', '局势', '朝廷', '官府', '兵马', '军士', '百姓', '军民', '将士', '大军', '营帐', '官吏', '求援信', '战报', '军令', '粮草'];
 
   function clampScore(value) {
     const num = Number(value);
@@ -61,11 +97,13 @@ const StreamRenderer = (() => {
     const trimmed = (term || '').trim();
     const normalized = normalizeTermKey(trimmed);
     if (!normalized) return true;
-    if (GENERIC_TERMS.has(trimmed)) return true;
+    if (GENERIC_TERMS.has(trimmed) || GENERIC_TERMS.has(normalized)) return true;
     if (trimmed.length <= 1) return true;
     if (trimmed.length <= 2 && !hasHistoricalShape(trimmed)) return true;
     if (/^[的了着把将向于因在从与及和或而但并若仍就都又很更最太也还便$]/.test(trimmed)) return true;
     if (/^(东西|事情|消息|局面|局势|时候|有人|众人|大家|自己|我们|你们|他们|前方|后方|城中|城外|家人|妇人|男人|孩子)$/.test(trimmed)) return true;
+    if (/^(清军|清兵|官军|敌军|叛军|援军|守军|追兵|水师|舟师|衙役|差役|书吏|官吏|军士|将士|兵卒|民夫|军心|民心|求援信|军令|战报|粮草|兵船|战船|探马|伏兵|军营|营帐|粮库)(.{0,4})?$/.test(trimmed)) return true;
+    if (/^.{0,4}(官吏|营帐|军营|求援信|军心|粮库|战报|军令|粮草|援军|守军|水师|追兵|兵船|战船)$/.test(trimmed)) return true;
     return GENERIC_SUFFIXES.some(suffix => trimmed.endsWith(suffix) && trimmed.length <= suffix.length + 2);
   }
 
@@ -101,12 +139,17 @@ const StreamRenderer = (() => {
   function resolveAnnotationsForText(text, rawItems = [], introducedTerms = [], introducedAliases = {}) {
     const sourceText = text || '';
     const aliasMap = Object.entries(introducedAliases || {}).reduce((acc, [term, key]) => {
-      const normalizedTerm = normalizeTermKey(term);
       const normalizedKey = normalizeTermKey(key);
-      if (normalizedTerm && normalizedKey) acc[normalizedTerm] = normalizedKey;
+      if (!normalizedKey) return acc;
+      toEquivalentTermKeys(term).forEach(equivalent => {
+        acc[equivalent] = normalizedKey;
+      });
       return acc;
     }, {});
-    const introducedKeySet = new Set((introducedTerms || []).map(normalizeTermKey).filter(Boolean));
+    const introducedKeySet = new Set();
+    (introducedTerms || []).forEach(term => {
+      toEquivalentTermKeys(term).forEach(equivalent => introducedKeySet.add(equivalent));
+    });
     const seenKeys = new Set();
     const seenTerms = new Set();
 
@@ -130,10 +173,12 @@ const StreamRenderer = (() => {
         };
       })
       .filter(item => item.start !== -1)
+      .filter(item => !item.wasIntroduced)
       .filter(item => !item.isGeneric || (item.totalScore >= 0.72 && hasHistoricalShape(item.term)))
+      .filter(item => !aliasMap[item.normalizedTerm])
       .map(item => ({
         ...item,
-        totalScore: item.totalScore - (item.wasIntroduced ? 0.35 : 0)
+        totalScore: item.totalScore
       }))
       .filter(item => item.totalScore > 0);
 
@@ -169,11 +214,16 @@ const StreamRenderer = (() => {
 
   function buildSegments(text, annotations = [], introducedTerms = [], introducedAliases = {}) {
     const sourceText = text || '';
-    const seenTerms = new Set(introducedTerms.map(normalizeTermKey).filter(Boolean));
+    const seenTerms = new Set();
+    introducedTerms.forEach(term => {
+      toEquivalentTermKeys(term).forEach(equivalent => seenTerms.add(equivalent));
+    });
     const aliasMap = Object.entries(introducedAliases || {}).reduce((acc, [term, key]) => {
-      const normalizedTerm = normalizeTermKey(term);
       const normalizedKey = normalizeTermKey(key);
-      if (normalizedTerm && normalizedKey) acc[normalizedTerm] = normalizedKey;
+      if (!normalizedKey) return acc;
+      toEquivalentTermKeys(term).forEach(equivalent => {
+        acc[equivalent] = normalizedKey;
+      });
       return acc;
     }, {});
     const seenKeysInBlock = new Set();

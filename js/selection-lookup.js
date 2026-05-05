@@ -177,8 +177,29 @@ const SelectionLookup = (() => {
     const hostEl = common.nodeType === 1 ? common : common.parentNode;
     const paragraphEl = hostEl && hostEl.closest ? (hostEl.closest('p, li, blockquote, div') || hostEl) : hostEl;
     const raw = paragraphEl && paragraphEl.textContent ? paragraphEl.textContent.trim() : '';
-    if (!raw) return '';
-    return raw.length > 240 ? `${raw.slice(0, 240)}…` : raw;
+    const sceneTextEl = document.getElementById('scene-text');
+    const npcTextEl = document.getElementById('npc-text');
+    const questionTextEl = document.getElementById('question-text');
+    const roleLabelEl = document.getElementById('role-label');
+    const contextParts = [];
+
+    if (roleLabelEl && roleLabelEl.textContent.trim()) {
+      contextParts.push(`当前角色：${roleLabelEl.textContent.trim()}`);
+    }
+    if (raw) {
+      contextParts.push(`当前段落：${raw.length > 160 ? `${raw.slice(0, 160)}…` : raw}`);
+    }
+    if (sceneTextEl && sceneTextEl.textContent.trim()) {
+      contextParts.push(`场景：${sceneTextEl.textContent.trim().slice(0, 180)}`);
+    }
+    if (npcTextEl && npcTextEl.textContent.trim()) {
+      contextParts.push(`NPC：${npcTextEl.textContent.trim().slice(0, 80)}`);
+    }
+    if (questionTextEl && questionTextEl.textContent.trim()) {
+      contextParts.push(`抉择：${questionTextEl.textContent.trim().slice(0, 80)}`);
+    }
+
+    return contextParts.join('；').slice(0, 420);
   }
 
   function showIconAt(rect) {
